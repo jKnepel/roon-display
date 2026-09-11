@@ -18,6 +18,7 @@ RoonClient::RoonClient(ClientOptions options) : options_(std::move(options)) {
 }
 
 std::uint64_t RoonClient::send_request(const std::string& endpoint, const std::string& body) {
+    std::lock_guard lock(send_mutex_);
     const auto id = next_request_id_++;
     if (options_.trace)
         std::cout << "-> REQUEST " << id << ' ' << endpoint
@@ -25,9 +26,25 @@ std::uint64_t RoonClient::send_request(const std::string& endpoint, const std::s
     websocket_.send_binary(make_moo_request(id, endpoint, body));
     return id;
 }
+bool RoonClient::control(const std::string& command) {
+    if (!active_zone_id_ || command.empty()) return false;
+    send_request("com.roonlabs.transport:2/control",
+                 "{\"zone_or_output_id\":\"" + json_escape(*active_zone_id_) +
+                 "\",\"control\":\"" + json_escape(command) + "\"}");
+    return true;
+}
+
+bool RoonClient::seek(double position) {
+    if (!active_zone_id_ || position < 0) return false;
+    send_request("com.roonlabs.transport:2/seek",
+                 "{\"zone_or_output_id\":\"" + json_escape(*active_zone_id_) +
+                 "\",\"how\":\"absolute\",\"seconds\":" + std::to_string(position) + "}");
+    return true;
+}
 
 void RoonClient::send_response(const MooMessage& request, const std::string& verb,
                                const std::string& name, const std::string& body) {
+    std::lock_guard lock(send_mutex_);
     if (options_.trace)
         std::cout << "-> " << verb << ' ' << request.request_id << ' ' << name
                   << (body.empty() ? "" : " " + body) << '\n';
@@ -60,6 +77,7 @@ void RoonClient::send_display_changed() {
     const std::string body = "{\"displays_changed\":" +
         displays.substr(begin, end - begin + 1) + "}";
     for (const auto& request_id : display_subscription_ids_) {
+        std::lock_guard lock(send_mutex_);
         if (options_.trace)
             std::cout << "-> CONTINUE " << request_id << " Changed " << body << std::endl;
         websocket_.send_binary(make_moo_response("CONTINUE", "Changed", request_id, body));

@@ -73,7 +73,7 @@ public:
         ++artwork_versions_[key];
     }
 
-    void run() {
+    void run(roon_display::RoonClient& client) {
         socket_ = ::socket(AF_INET, SOCK_STREAM, 0);
         if (socket_ < 0) throw std::runtime_error("cannot create preview socket");
         int reuse = 1;
@@ -86,9 +86,9 @@ public:
             ::listen(socket_, 16) < 0) throw std::runtime_error("cannot bind preview server");
         std::cout << "Live preview: http://127.0.0.1:" << port_ << "/ui/\n";
         for (;;) {
-            const int client = ::accept(socket_, nullptr, nullptr);
-            if (client < 0) continue;
-            handle(client);
+            const int accepted_fd = ::accept(socket_, nullptr, nullptr);
+            if (accepted_fd < 0) continue;
+            handle(accepted_fd, client);
         }
     }
 
@@ -103,16 +103,35 @@ private:
 
 
 
-    void handle(int fd) {
+    void handle(int fd, roon_display::RoonClient& roon) {
         char buffer[4096]{};
         const auto count = ::recv(fd, buffer, sizeof(buffer) - 1, 0);
         if (count <= 0) { ::close(fd); return; }
         std::istringstream request(std::string(buffer, static_cast<std::size_t>(count)));
         std::string method, path, version;
         request >> method >> path >> version;
-        if (method != "GET" || path.find("..") != std::string::npos) {
+        if ((method != "GET" && method != "POST") || path.find("..") != std::string::npos) {
             ::close(fd); return;
         }
+        if (method == "POST" && path == "/control") {
+            const std::string raw(buffer, static_cast<std::size_t>(count));
+            const auto separator = raw.find("\r\n\r\n");
+            const std::string body = separator == std::string::npos ? "" : raw.substr(separator + 4);
+            const auto marker = body.find("\"command\":\"");
+            if (marker == std::string::npos) { send_all(fd, "HTTP/1.1 400 Bad Request\r\nContent-Length: 0\r\n\r\n"); ::close(fd); return; }
+            const auto start = marker + 11;
+            const auto end = body.find("\"", start);
+            const auto command = body.substr(start, end == std::string::npos ? std::string::npos : end - start);
+            bool accepted = false;
+            if (command == "seek") {
+                const auto position_marker = body.find("\"position\":");
+                if (position_marker != std::string::npos) { try { accepted = roon.seek(std::stod(body.substr(position_marker + 11))); } catch (...) {} }
+            } else accepted = roon.control(command);
+            const std::string response = accepted ? "{\"ok\":true}" : "{\"ok\":false}";
+            send_all(fd, "HTTP/1.1 " + std::string(accepted ? "200 OK" : "409 Conflict") + "\r\nContent-Type: application/json\r\nContent-Length: " + std::to_string(response.size()) + "\r\n\r\n" + response);
+            ::close(fd); return;
+        }
+
         if (path == "/events") {
             try {
                 send_all(fd, "HTTP/1.1 200 OK\r\nContent-Type: text/event-stream\r\n"
@@ -170,7 +189,7 @@ int main(int argc, char** argv) {
             std::cout << "Artwork cached: " << key << " (" << bytes.size() << " bytes)\n";
         });
         std::thread roon_thread([&client] { client.run(); });
-        server.run();
+        server.run(client);
         roon_thread.join();
     } catch (const std::exception& error) {
         std::cerr << "live-preview: " << error.what() << '\n';

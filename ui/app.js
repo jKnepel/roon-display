@@ -10,8 +10,15 @@
   const elements = {
     zone: $("zone"), state: $("state"), track: $("track"), artist: $("artist"),
     album: $("album"), progress: $("progress"), elapsed: $("elapsed"),
-    duration: $("duration"), artwork: $("artwork"), connection: $("connection")
+    duration: $("duration"), previous: $("previous"), playPause: $("play-pause"), next: $("next"), artwork: $("artwork"), connection: $("connection")
   };
+
+  async function command(command, position) {
+    try {
+      const response = await fetch("/control", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(position === undefined ? { command } : { command, position }) });
+      if (!response.ok) console.warn("Roon control rejected:", command);
+    } catch (error) { console.error("Roon control:", error); }
+  }
 
   function clock(seconds) {
     if (!Number.isFinite(seconds) || seconds < 0) return "0:00";
@@ -20,6 +27,7 @@
   }
 
   function update(state) {
+    window.__roonDisplayState = state;
     const zone = state && state.activeZone ? state.activeZone : null;
     if (!zone) {
       elements.zone.textContent = "Waiting for zone";
@@ -35,6 +43,8 @@
     const detailed = now.threeLine || {};
     elements.zone.textContent = zone.displayName || "Roon zone";
     elements.state.textContent = String(zone.state || "stopped").toUpperCase();
+    elements.playPause.textContent = zone.state === "playing" ? "⏸" : "▶";
+    elements.playPause.setAttribute("aria-label", zone.state === "playing" ? "Pause" : "Play");
     elements.track.textContent = detailed.line1 || lines.line1 || now.track || "No track playing";
     elements.artist.textContent = detailed.line2 || lines.line2 || now.artist || "—";
     elements.album.textContent = detailed.line3 || now.album || "—";
@@ -53,6 +63,16 @@
   }
 
   window.RoonDisplay = { update };
+  elements.previous.addEventListener("click", () => command("previous"));
+  elements.next.addEventListener("click", () => command("next"));
+  elements.playPause.addEventListener("click", () => command("playpause"));
+  document.querySelector(".timeline").addEventListener("click", (event) => {
+    const duration = Number((window.__roonDisplayState || {}).activeZone?.nowPlaying?.length || 0);
+    if (duration <= 0) return;
+    const bounds = event.currentTarget.getBoundingClientRect();
+    const ratio = Math.min(1, Math.max(0, (event.clientX - bounds.left) / bounds.width));
+    command("seek", duration * ratio);
+  });
 
   // Fixture mode: load the same shape as the checked-in transport examples,
   // normalize it to the UI contract, and replay the state transition once.

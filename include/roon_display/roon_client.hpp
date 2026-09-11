@@ -9,6 +9,7 @@
 #include <utility>
 #include <optional>
 #include <string>
+#include <mutex>
 #include <vector>
 
 namespace roon_display {
@@ -29,6 +30,8 @@ public:
     const DisplayStateStore& state() const { return state_; }
     void set_state_callback(DisplayStateStore::ChangeCallback callback) { state_.set_change_callback(std::move(callback)); }
     void set_artwork_callback(ArtworkCallback callback) { artwork_callback_ = std::move(callback); }
+    bool control(const std::string& command);
+    bool seek(double position);
 
 private:
     ClientOptions options_;
@@ -43,6 +46,7 @@ private:
     ArtworkCallback artwork_callback_;
     std::map<std::string, std::string> artwork_requests_;
     std::string requested_artwork_key_;
+    mutable std::mutex send_mutex_;
 
     std::uint64_t send_request(const std::string& endpoint, const std::string& body = {});
     void send_response(const MooMessage& request, const std::string& verb,
