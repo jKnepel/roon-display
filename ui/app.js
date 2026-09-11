@@ -6,6 +6,7 @@
 (function () {
   "use strict";
   const $ = (id) => document.getElementById(id);
+  let currentArtworkUrl = null;
   const elements = {
     zone: $("zone"), state: $("state"), track: $("track"), artist: $("artist"),
     album: $("album"), progress: $("progress"), elapsed: $("elapsed"),
@@ -31,11 +32,12 @@
     }
     const now = zone.nowPlaying || {};
     const lines = now.twoLine || {};
+    const detailed = now.threeLine || {};
     elements.zone.textContent = zone.displayName || "Roon zone";
     elements.state.textContent = String(zone.state || "stopped").toUpperCase();
-    elements.track.textContent = lines.line2 || now.track || "No track playing";
-    elements.artist.textContent = lines.line1 || now.artist || "—";
-    elements.album.textContent = now.album || "—";
+    elements.track.textContent = detailed.line1 || lines.line1 || now.track || "No track playing";
+    elements.artist.textContent = detailed.line2 || lines.line2 || now.artist || "—";
+    elements.album.textContent = detailed.line3 || now.album || "—";
     const position = Number(now.seekPosition ?? zone.seekPosition ?? 0);
     const duration = Number(now.length ?? 0);
     elements.elapsed.textContent = clock(position);
@@ -45,7 +47,7 @@
       // Artwork retrieval is host-specific. The key is exposed as a CSS hook
       // now; a host can replace this with a blob/data URL later.
       elements.artwork.dataset.imageKey = now.imageKey;
-      if (now.artworkUrl) elements.artwork.style.backgroundImage = `url("${now.artworkUrl}")`;
+      if (now.artworkUrl && now.artworkUrl !== currentArtworkUrl) { elements.artwork.style.backgroundImage = `url("${now.artworkUrl}")`; currentArtworkUrl = now.artworkUrl; }
     }
     elements.connection.classList.add("connected");
   }
@@ -71,7 +73,7 @@
       const now = source.now_playing || {};
       return { activeZone: { displayName: source.display_name, state: source.state,
         seekPosition: source.seek_position, nowPlaying: { ...now,
-          seekPosition: now.seek_position, twoLine: now.two_line } } };
+          seekPosition: now.seek_position, twoLine: now.two_line, threeLine: now.three_line } } };
     };
     update(toState(initial));
     window.setTimeout(() => update(toState(changed)), 3500);

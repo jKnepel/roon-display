@@ -42,6 +42,7 @@ private:
     DisplayStateStore state_;
     ArtworkCallback artwork_callback_;
     std::map<std::string, std::string> artwork_requests_;
+    std::string requested_artwork_key_;
 
     std::uint64_t send_request(const std::string& endpoint, const std::string& body = {});
     void send_response(const MooMessage& request, const std::string& verb,

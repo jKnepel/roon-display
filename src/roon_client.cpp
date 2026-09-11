@@ -71,6 +71,8 @@ void RoonClient::request_active_artwork() {
     const auto zone = state_.snapshot().zones.find(*active_zone_id_);
     if (zone == state_.snapshot().zones.end() || !zone->second.now_playing || !zone->second.now_playing->image_key) return;
     const auto& key = *zone->second.now_playing->image_key;
+    if (requested_artwork_key_ == key) return;
+    requested_artwork_key_ = key;
     for (const auto& request : artwork_requests_) if (request.second == key) return;
     const auto id = send_request("com.roonlabs.image:1/get_image",
         "{\"image_key\":\"" + json_escape(key) + "\",\"scale\":\"fit\",\"width\":1200,\"height\":1200,\"format\":\"image/jpeg\"}");

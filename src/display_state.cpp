@@ -182,6 +182,10 @@ std::string to_json(const DisplayState& state) {
                 out << "\"twoLine\":{";
                 out << "\"line1\":\"" << json_escape(now.two_line.line1) << "\"";
                 if (now.two_line.line2) out << ",\"line2\":\"" << json_escape(*now.two_line.line2) << "\"";
+                out << "},\"threeLine\":{";
+                out << "\"line1\":\"" << json_escape(now.three_line.line1) << "\"";
+                if (now.three_line.line2) out << ",\"line2\":\"" << json_escape(*now.three_line.line2) << "\"";
+                if (now.three_line.line3) out << ",\"line3\":\"" << json_escape(*now.three_line.line3) << "\"";
                 out << "}}";
             }
             out << "}";
