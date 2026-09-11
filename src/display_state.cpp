@@ -115,6 +115,11 @@ std::optional<double> number_member(const Json& value, const char* key) {
     if (!item || !item->number()) return std::nullopt;
     return *item->number();
 }
+std::optional<bool> bool_member(const Json& value, const char* key) {
+    const auto* item = member(value, key);
+    if (!item || !item->boolean()) return std::nullopt;
+    return *item->boolean();
+}
 std::optional<std::string> optional_string_member(const Json& value, const char* key) {
     const auto* item = member(value, key);
     if (!item || !item->string()) return std::nullopt;
@@ -139,6 +144,11 @@ ZoneState zone(const Json& value) {
     result.state = playback_state(string_member(value, "state"));
     result.seek_position = number_member(value, "seek_position");
     result.queue_time_remaining = number_member(value, "queue_time_remaining");
+    result.play_allowed = bool_member(value, "is_play_allowed");
+    result.pause_allowed = bool_member(value, "is_pause_allowed");
+    result.previous_allowed = bool_member(value, "is_previous_allowed");
+    result.next_allowed = bool_member(value, "is_next_allowed");
+    result.seek_allowed = bool_member(value, "is_seek_allowed");
     if (const auto* playing = member(value, "now_playing"); playing && playing->object()) {
         NowPlayingState now;
         now.seek_position = number_member(*playing, "seek_position");
@@ -170,6 +180,11 @@ std::string to_json(const DisplayState& state) {
         else {
             const auto& zone = it->second;
             out << "{\"displayName\":\"" << json_escape(zone.display_name) << "\",\"state\":\"" << to_string(zone.state) << "\"";
+            if (zone.play_allowed) out << ",\"playAllowed\":" << (*zone.play_allowed ? "true" : "false");
+            if (zone.pause_allowed) out << ",\"pauseAllowed\":" << (*zone.pause_allowed ? "true" : "false");
+            if (zone.previous_allowed) out << ",\"previousAllowed\":" << (*zone.previous_allowed ? "true" : "false");
+            if (zone.next_allowed) out << ",\"nextAllowed\":" << (*zone.next_allowed ? "true" : "false");
+            if (zone.seek_allowed) out << ",\"seekAllowed\":" << (*zone.seek_allowed ? "true" : "false");
             if (zone.seek_position) out << ",\"seekPosition\":" << *zone.seek_position;
             if (zone.now_playing) {
                 const auto& now = *zone.now_playing;

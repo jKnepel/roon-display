@@ -36,6 +36,8 @@
       elements.artist.textContent = "—";
       elements.album.textContent = "—";
       elements.progress.style.width = "0%";
+      elements.previous.disabled = elements.playPause.disabled = elements.next.disabled = true;
+      document.querySelector(".timeline").classList.add("disabled");
       return;
     }
     const now = zone.nowPlaying || {};
@@ -45,6 +47,10 @@
     elements.state.textContent = String(zone.state || "stopped").toUpperCase();
     elements.playPause.textContent = zone.state === "playing" ? "⏸" : "▶";
     elements.playPause.setAttribute("aria-label", zone.state === "playing" ? "Pause" : "Play");
+    elements.previous.disabled = zone.previousAllowed === false;
+    elements.next.disabled = zone.nextAllowed === false;
+    elements.playPause.disabled = zone.state === "playing" ? zone.pauseAllowed === false : zone.playAllowed === false;
+    document.querySelector(".timeline").classList.toggle("disabled", zone.seekAllowed === false);
     elements.track.textContent = detailed.line1 || lines.line1 || now.track || "No track playing";
     elements.artist.textContent = detailed.line2 || lines.line2 || now.artist || "—";
     elements.album.textContent = detailed.line3 || now.album || "—";
@@ -69,6 +75,7 @@
   document.querySelector(".timeline").addEventListener("click", (event) => {
     const duration = Number((window.__roonDisplayState || {}).activeZone?.nowPlaying?.length || 0);
     if (duration <= 0) return;
+    if (event.currentTarget.classList.contains("disabled")) return;
     const bounds = event.currentTarget.getBoundingClientRect();
     const ratio = Math.min(1, Math.max(0, (event.clientX - bounds.left) / bounds.width));
     command("seek", duration * ratio);

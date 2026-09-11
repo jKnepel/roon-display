@@ -32,6 +32,11 @@ struct ZoneState {
     PlaybackState state{PlaybackState::unknown};
     std::optional<double> seek_position;
     std::optional<double> queue_time_remaining;
+    std::optional<bool> play_allowed;
+    std::optional<bool> pause_allowed;
+    std::optional<bool> previous_allowed;
+    std::optional<bool> next_allowed;
+    std::optional<bool> seek_allowed;
     std::optional<NowPlayingState> now_playing;
 };
 
