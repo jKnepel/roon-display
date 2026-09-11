@@ -1,0 +1,43 @@
+:root {
+  color: #f5f5f3;
+  background: #090a0d;
+  font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  font-synthesis: none;
+}
+
+* { box-sizing: border-box; }
+html, body { width: 100%; height: 100%; margin: 0; overflow: hidden; }
+body { background: #090a0d; }
+
+.display { position: relative; display: grid; grid-template-columns: minmax(320px, 44vw) 1fr; gap: clamp(3rem, 8vw, 9rem); align-items: center; width: 100%; height: 100%; padding: clamp(2rem, 6vw, 7rem); overflow: hidden; }
+.backdrop { position: absolute; inset: -15%; z-index: -1; background: radial-gradient(ellipse at 20% 50%, #27313b 0%, #11151c 37%, #090a0d 75%); filter: blur(50px); opacity: .85; transition: background 1.2s ease; }
+.artwork-panel { display: flex; justify-content: center; }
+.artwork { position: relative; width: min(42vw, 680px); aspect-ratio: 1; display: grid; place-items: center; overflow: hidden; border-radius: 6px; background: linear-gradient(135deg, #d48452, #633e5d 52%, #20283c); box-shadow: 0 30px 90px #000a, 0 0 0 1px #ffffff12; transition: background 1s ease, transform .8s ease; }
+.artwork::before, .artwork::after { content: ""; position: absolute; border-radius: 50%; filter: blur(2px); mix-blend-mode: screen; }
+.artwork::before { width: 75%; height: 75%; background: radial-gradient(circle at 35% 35%, #ffd6a3, transparent 60%); transform: translate(-16%, -16%); opacity: .55; }
+.artwork::after { width: 90%; height: 90%; background: radial-gradient(circle at 70% 75%, #2f7aa0, transparent 60%); transform: translate(16%, 16%); opacity: .6; }
+.artwork span { z-index: 1; letter-spacing: .28em; font-size: clamp(1.2rem, 2.4vw, 2.4rem); font-weight: 700; opacity: .75; }
+.now-playing { display: flex; flex-direction: column; min-width: 0; height: min(70vh, 850px); }
+.topbar { display: flex; align-items: center; gap: 1rem; color: #aeb2b6; font-size: .72rem; letter-spacing: .14em; }
+.brand { color: #fff; font-weight: 800; letter-spacing: .28em; }
+.zone { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.connection { margin-left: auto; color: #9bd1ae; font-size: .62rem; }
+.connection i { display: inline-block; width: 7px; height: 7px; margin-right: .4rem; border-radius: 50%; background: #63d18a; box-shadow: 0 0 12px #63d18a; }
+.metadata { margin-top: auto; margin-bottom: auto; }
+.eyebrow { color: #9bd1ae; font-size: .7rem; font-weight: 700; letter-spacing: .2em; }
+h1, h2, .album { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+h1 { margin: .8rem 0 0; font-size: clamp(2rem, 5vw, 5rem); line-height: .98; letter-spacing: -.055em; font-weight: 700; }
+h2 { margin: 1.25rem 0 0; color: #d8dade; font-size: clamp(1.1rem, 2.3vw, 2.1rem); font-weight: 400; letter-spacing: -.025em; }
+.album { margin: .55rem 0 0; color: #858a91; font-size: clamp(.95rem, 1.4vw, 1.25rem); }
+.timeline { width: 100%; }
+.progress-track { height: 3px; width: 100%; background: #ffffff28; }
+.progress { height: 100%; width: 0; background: #f5f5f3; transition: width .5s linear; }
+.times { display: flex; justify-content: space-between; margin-top: .65rem; color: #858a91; font-size: .72rem; font-variant-numeric: tabular-nums; }
+
+@media (max-width: 760px) {
+  .display { grid-template-columns: 1fr; gap: 1.7rem; align-content: center; padding: 1.5rem; }
+  .artwork { width: min(70vw, 420px); }
+  .now-playing { height: auto; min-height: 40vh; }
+  .metadata { margin: 2rem 0; }
+  h1 { font-size: clamp(2rem, 10vw, 3.6rem); }
+}

@@ -63,6 +63,7 @@ private:
 };
 
 const char* to_string(PlaybackState state);
+std::string to_json(const DisplayState& state);
 
 } // namespace roon_display
 

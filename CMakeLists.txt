@@ -16,6 +16,12 @@ target_include_directories(roon_protocol PUBLIC include)
 target_compile_options(roon_protocol PRIVATE -Wall -Wextra -Wpedantic)
 
 add_executable(roon-display src/main.cpp)
+add_executable(state-replay src/state_replay.cpp)
+add_executable(live-preview src/live_preview.cpp)
+target_link_libraries(live-preview PRIVATE roon_protocol)
+
+target_link_libraries(state-replay PRIVATE roon_protocol)
+
 target_link_libraries(roon-display PRIVATE roon_protocol)
 
 include(CTest)

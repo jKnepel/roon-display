@@ -1,0 +1,79 @@
+/*
+ * Shared display UI contract.
+ * Hosts should call window.RoonDisplay.update(DisplayState). The UI does not
+ * know about MOO, SOOD, WebSockets, Android, or Tizen.
+ */
+(function () {
+  "use strict";
+  const $ = (id) => document.getElementById(id);
+  const elements = {
+    zone: $("zone"), state: $("state"), track: $("track"), artist: $("artist"),
+    album: $("album"), progress: $("progress"), elapsed: $("elapsed"),
+    duration: $("duration"), artwork: $("artwork"), connection: $("connection")
+  };
+
+  function clock(seconds) {
+    if (!Number.isFinite(seconds) || seconds < 0) return "0:00";
+    const minutes = Math.floor(seconds / 60);
+    return `${minutes}:${String(Math.floor(seconds % 60)).padStart(2, "0")}`;
+  }
+
+  function update(state) {
+    const zone = state && state.activeZone ? state.activeZone : null;
+    if (!zone) {
+      elements.zone.textContent = "Waiting for zone";
+      elements.state.textContent = "STOPPED";
+      elements.track.textContent = "No track playing";
+      elements.artist.textContent = "—";
+      elements.album.textContent = "—";
+      elements.progress.style.width = "0%";
+      return;
+    }
+    const now = zone.nowPlaying || {};
+    const lines = now.twoLine || {};
+    elements.zone.textContent = zone.displayName || "Roon zone";
+    elements.state.textContent = String(zone.state || "stopped").toUpperCase();
+    elements.track.textContent = lines.line2 || now.track || "No track playing";
+    elements.artist.textContent = lines.line1 || now.artist || "—";
+    elements.album.textContent = now.album || "—";
+    const position = Number(now.seekPosition ?? zone.seekPosition ?? 0);
+    const duration = Number(now.length ?? 0);
+    elements.elapsed.textContent = clock(position);
+    elements.duration.textContent = clock(duration);
+    elements.progress.style.width = duration > 0 ? `${Math.min(100, Math.max(0, position / duration * 100))}%` : "0%";
+    if (now.imageKey) {
+      // Artwork retrieval is host-specific. The key is exposed as a CSS hook
+      // now; a host can replace this with a blob/data URL later.
+      elements.artwork.dataset.imageKey = now.imageKey;
+    }
+    elements.connection.classList.add("connected");
+  }
+
+  window.RoonDisplay = { update };
+
+  // Fixture mode: load the same shape as the checked-in transport examples,
+  // normalize it to the UI contract, and replay the state transition once.
+  async function fixtureMode() {
+    if (!location.search.includes("fixture")) {
+      const events = new EventSource("/events");
+      events.onmessage = (event) => { try { update(JSON.parse(event.data)); } catch (error) { console.error("state event:", error); } };
+      events.onerror = () => elements.connection.classList.remove("connected");
+      return;
+    }
+    const [initial, changed] = await Promise.all([
+      fetch("../fixtures/transport/subscribed.json").then((r) => r.json()),
+      fetch("../fixtures/transport/changed.json").then((r) => r.json())
+    ]);
+    const toState = (payload) => {
+      const source = (payload.zones || payload.zones_changed || [])[0];
+      if (!source) return {};
+      const now = source.now_playing || {};
+      return { activeZone: { displayName: source.display_name, state: source.state,
+        seekPosition: source.seek_position, nowPlaying: { ...now,
+          seekPosition: now.seek_position, twoLine: now.two_line } } };
+    };
+    update(toState(initial));
+    window.setTimeout(() => update(toState(changed)), 3500);
+  }
+  fixtureMode().catch((error) => console.error("fixture mode:", error));
+})();

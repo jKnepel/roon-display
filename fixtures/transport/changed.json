@@ -1,0 +1,1 @@
+{"zones_changed":[{"zone_id":"living-room-zone","display_name":"Living Room","state":"paused","seek_position":47.0,"now_playing":{"seek_position":47.0,"length":245.0,"image_key":"album-art-001","two_line":{"line1":"Example Artist","line2":"Example Track"}}}],"zones_seek_changed":[{"zone_id":"living-room-zone","seek_position":48.25,"queue_time_remaining":1794.25}]}

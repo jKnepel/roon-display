@@ -5,6 +5,7 @@
 #include <cctype>
 #include <cstdlib>
 #include <stdexcept>
+#include <sstream>
 #include <variant>
 
 namespace roon_display {
@@ -157,6 +158,35 @@ ZoneState zone(const Json& value) {
 
 const char* to_string(PlaybackState state) {
     switch (state) { case PlaybackState::playing: return "playing"; case PlaybackState::paused: return "paused"; case PlaybackState::loading: return "loading"; case PlaybackState::stopped: return "stopped"; default: return "unknown"; }
+}
+
+std::string to_json(const DisplayState& state) {
+    std::ostringstream out;
+    out << "{\"activeZone\":";
+    if (!state.active_zone_id) out << "null";
+    else {
+        const auto it = state.zones.find(*state.active_zone_id);
+        if (it == state.zones.end()) out << "null";
+        else {
+            const auto& zone = it->second;
+            out << "{\"displayName\":\"" << json_escape(zone.display_name) << "\",\"state\":\"" << to_string(zone.state) << "\"";
+            if (zone.seek_position) out << ",\"seekPosition\":" << *zone.seek_position;
+            if (zone.now_playing) {
+                const auto& now = *zone.now_playing;
+                out << ",\"nowPlaying\":{";
+                if (now.seek_position) out << "\"seekPosition\":" << *now.seek_position << ",";
+                if (now.length) out << "\"length\":" << *now.length << ",";
+                if (now.image_key) out << "\"imageKey\":\"" << json_escape(*now.image_key) << "\",";
+                out << "\"twoLine\":{";
+                out << "\"line1\":\"" << json_escape(now.two_line.line1) << "\"";
+                if (now.two_line.line2) out << ",\"line2\":\"" << json_escape(*now.two_line.line2) << "\"";
+                out << "}}";
+            }
+            out << "}";
+        }
+    }
+    out << "}";
+    return out.str();
 }
 
 void DisplayStateStore::changed() { if (callback_) callback_(state_); }

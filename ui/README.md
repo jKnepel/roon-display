@@ -1,0 +1,37 @@
+# Shared display UI
+
+This is a target-neutral full-screen Now Playing view. It can be opened in a
+browser today and embedded in Linux, Android TV, or Tizen hosts later.
+
+Run fixture mode from the project root:
+
+```sh
+python3 -m http.server 8080
+```
+
+Open <http://localhost:8080/ui/?fixture>. The page loads the checked-in transport
+fixtures, renders the initial playing state, then replays the paused update after
+3.5 seconds.
+
+Host integration is intentionally small:
+
+```js
+window.RoonDisplay.update({
+  activeZone: {
+    displayName: "Living Room",
+    state: "playing",
+    nowPlaying: {
+      artist: "Artist",
+      album: "Album",
+      track: "Track",
+      seekPosition: 12,
+      length: 240,
+      imageKey: "album-art-key",
+      twoLine: { line1: "Artist", line2: "Track" }
+    }
+  }
+});
+```
+
+The host owns Roon protocol and artwork retrieval. The UI only consumes the
+normalized display-state contract.

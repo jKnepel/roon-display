@@ -1,0 +1,36 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="dark">
+  <title>Roon Display</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <main class="display" aria-live="polite">
+    <div class="backdrop" aria-hidden="true"></div>
+    <section class="artwork-panel">
+      <div class="artwork" id="artwork"><span id="artwork-mark">ROON</span></div>
+    </section>
+    <section class="now-playing">
+      <header class="topbar">
+        <span class="brand">ROON</span>
+        <span class="zone" id="zone">Waiting for zone</span>
+        <span class="connection" id="connection"><i></i> LIVE</span>
+      </header>
+      <div class="metadata">
+        <p class="eyebrow" id="state">STOPPED</p>
+        <h1 id="track">No track playing</h1>
+        <h2 id="artist">—</h2>
+        <p class="album" id="album">—</p>
+      </div>
+      <div class="timeline">
+        <div class="progress-track"><div class="progress" id="progress"></div></div>
+        <div class="times"><span id="elapsed">0:00</span><span id="duration">0:00</span></div>
+      </div>
+    </section>
+  </main>
+  <script src="app.js"></script>
+</body>
+</html>
