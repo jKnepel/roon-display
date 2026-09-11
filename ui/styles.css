@@ -9,15 +9,15 @@
 html, body { width: 100%; height: 100%; margin: 0; overflow: hidden; }
 body { background: #090a0d; }
 
-.display { position: relative; display: grid; grid-template-columns: minmax(320px, 44vw) 1fr; gap: clamp(3rem, 8vw, 9rem); align-items: center; width: 100%; height: 100%; padding: clamp(2rem, 6vw, 7rem); overflow: hidden; }
-.backdrop { position: absolute; inset: -15%; z-index: -1; background: radial-gradient(ellipse at 20% 50%, #27313b 0%, #11151c 37%, #090a0d 75%); filter: blur(50px); opacity: .85; transition: background 1.2s ease; }
-.artwork-panel { display: flex; justify-content: center; }
+.display { isolation: isolate; position: relative; display: grid; grid-template-columns: minmax(320px, 44vw) 1fr; gap: clamp(3rem, 8vw, 9rem); align-items: center; width: 100%; height: 100%; padding: clamp(2rem, 6vw, 7rem); overflow: hidden; }
+.backdrop { position: absolute; inset: -15%; z-index: 0; background: radial-gradient(ellipse at 20% 50%, #27313b 0%, #11151c 37%, #090a0d 75%); filter: blur(50px); opacity: .85; transition: background 1.2s ease; }
+.artwork-panel { position: relative; z-index: 1; display: flex; justify-content: center; }
 .artwork { position: relative; width: min(42vw, 680px); aspect-ratio: 1; display: grid; place-items: center; overflow: hidden; border-radius: 6px; background: linear-gradient(135deg, #d48452, #633e5d 52%, #20283c); background-size: cover; background-position: center; background-repeat: no-repeat; box-shadow: 0 30px 90px #000a, 0 0 0 1px #ffffff12; transition: background 1s ease, transform .8s ease; }
 .artwork::before, .artwork::after { content: ""; position: absolute; border-radius: 50%; filter: blur(2px); mix-blend-mode: screen; }
 .artwork::before { width: 75%; height: 75%; background: radial-gradient(circle at 35% 35%, #ffd6a3, transparent 60%); transform: translate(-16%, -16%); opacity: .55; }
 .artwork::after { width: 90%; height: 90%; background: radial-gradient(circle at 70% 75%, #2f7aa0, transparent 60%); transform: translate(16%, 16%); opacity: .6; }
 .artwork span { z-index: 1; letter-spacing: .28em; font-size: clamp(1.2rem, 2.4vw, 2.4rem); font-weight: 700; opacity: .75; }
-.now-playing { display: flex; flex-direction: column; min-width: 0; height: min(70vh, 850px); }
+.now-playing { position: relative; z-index: 1; display: flex; flex-direction: column; min-width: 0; height: min(70vh, 850px); }
 .topbar { display: flex; align-items: center; gap: 1rem; color: #aeb2b6; font-size: .72rem; letter-spacing: .14em; }
 .brand { color: #fff; font-weight: 800; letter-spacing: .28em; }
 .zone { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }

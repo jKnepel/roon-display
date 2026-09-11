@@ -55,6 +55,7 @@ public:
                 if (position != std::string::npos) json.replace(position, old_url.size(), new_url);
             }
         }
+        { std::lock_guard lock(mutex_); latest_state_ = json; }
         publish(json);
     }
 
@@ -100,21 +101,31 @@ private:
     std::vector<int> clients_;
     std::map<std::string, std::pair<std::string, std::vector<std::uint8_t>>> artwork_;
     std::map<std::string, std::size_t> artwork_versions_;
+    std::string latest_state_{"{\"activeZone\":null}"};
 
 
 
     void handle(int fd, roon_display::RoonClient& roon) {
+        std::string raw;
         char buffer[4096]{};
-        const auto count = ::recv(fd, buffer, sizeof(buffer) - 1, 0);
-        if (count <= 0) { ::close(fd); return; }
-        std::istringstream request(std::string(buffer, static_cast<std::size_t>(count)));
+        for (;;) {
+            const auto count = ::recv(fd, buffer, sizeof(buffer), 0);
+            if (count <= 0) { ::close(fd); return; }
+            raw.append(buffer, static_cast<std::size_t>(count));
+            const auto separator = raw.find("\r\n\r\n");
+            if (separator == std::string::npos) continue;
+            std::size_t content_length = 0;
+            const auto length_marker = raw.find("Content-Length:");
+            if (length_marker != std::string::npos) content_length = static_cast<std::size_t>(std::stoul(raw.substr(length_marker + 15)));
+            if (raw.size() >= separator + 4 + content_length) break;
+        }
+        std::istringstream request(raw);
         std::string method, path, version;
         request >> method >> path >> version;
         if ((method != "GET" && method != "POST") || path.find("..") != std::string::npos) {
             ::close(fd); return;
         }
         if (method == "POST" && path == "/control") {
-            const std::string raw(buffer, static_cast<std::size_t>(count));
             const auto separator = raw.find("\r\n\r\n");
             const std::string body = separator == std::string::npos ? "" : raw.substr(separator + 4);
             const auto marker = body.find("\"command\":\"");
@@ -129,6 +140,12 @@ private:
             } else accepted = roon.control(command);
             const std::string response = accepted ? "{\"ok\":true}" : "{\"ok\":false}";
             send_all(fd, "HTTP/1.1 " + std::string(accepted ? "200 OK" : "409 Conflict") + "\r\nContent-Type: application/json\r\nContent-Length: " + std::to_string(response.size()) + "\r\n\r\n" + response);
+            ::close(fd); return;
+        }
+
+        if (path == "/state") {
+            std::lock_guard lock(mutex_);
+            send_all(fd, "HTTP/1.1 200 OK\r\nCache-Control: no-store\r\nContent-Type: application/json\r\nContent-Length: " + std::to_string(latest_state_.size()) + "\r\n\r\n" + latest_state_);
             ::close(fd); return;
         }
 
@@ -157,9 +174,9 @@ private:
             ::close(fd);
             return;
         }
-        if (path == "/" || path == "/ui" || path == "/ui/") path = "/ui/index.html";
         const auto query = path.find('?');
         if (query != std::string::npos) path.resize(query);
+        if (path == "/" || path == "/ui" || path == "/ui/") path = "/ui/index.html";
         const std::string file = root_ + path;
         std::ifstream input(file, std::ios::binary);
         if (!input) { send_all(fd, "HTTP/1.1 404 Not Found\r\nContent-Length: 0\r\n\r\n"); ::close(fd); return; }

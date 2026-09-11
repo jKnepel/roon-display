@@ -68,8 +68,8 @@
     elements.track.textContent = detailed.line1 || lines.line1 || now.track || "No track playing";
     elements.artist.textContent = detailed.line2 || lines.line2 || now.artist || "—";
     elements.album.textContent = detailed.line3 || now.album || "—";
-    const position = Number(now.seekPosition ?? zone.seekPosition ?? 0);
-    const duration = Number(now.length ?? 0);
+    const position = Number(now.seekPosition != null ? now.seekPosition : (zone.seekPosition != null ? zone.seekPosition : 0));
+    const duration = Number(now.length != null ? now.length : 0);
     progressPosition = position; progressLength = duration; progressState = zone.state || "stopped";
     elements.elapsed.textContent = clock(position);
     elements.duration.textContent = clock(duration);
@@ -96,7 +96,10 @@
   elements.next.addEventListener("click", () => command("next"));
   elements.playPause.addEventListener("click", () => command("playpause"));
   document.querySelector(".timeline").addEventListener("click", (event) => {
-    const duration = Number((window.__roonDisplayState || {}).activeZone?.nowPlaying?.length || 0);
+    const currentState = window.__roonDisplayState || {};
+    const activeZone = currentState.activeZone || {};
+    const currentNow = activeZone.nowPlaying || {};
+    const duration = Number(currentNow.length || 0);
     if (duration <= 0) return;
     if (event.currentTarget.classList.contains("disabled")) return;
     const bounds = event.currentTarget.getBoundingClientRect();
@@ -117,6 +120,9 @@
       events.onerror = () => elements.connection.classList.remove("connected");
       return;
     }
+    elements.previous.disabled = elements.playPause.disabled = elements.next.disabled = true;
+    document.querySelector(".timeline").classList.add("disabled");
+    elements.controlStatus.textContent = "Fixture mode";
     const [initial, changed] = await Promise.all([
       fetch("../fixtures/transport/subscribed.json").then((r) => r.json()),
       fetch("../fixtures/transport/changed.json").then((r) => r.json())

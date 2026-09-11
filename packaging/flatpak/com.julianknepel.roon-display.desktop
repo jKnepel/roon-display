@@ -1,0 +1,8 @@
+[Desktop Entry]
+Name=Roon Display
+Comment=Native Roon Now Playing display
+Exec=roon-display-run
+Icon=com.julianknepel.roon-display
+Type=Application
+Categories=AudioVideo;Audio;
+Terminal=false

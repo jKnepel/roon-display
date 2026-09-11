@@ -54,3 +54,7 @@ window.RoonDisplayHost = {
 
 When this object is absent, the Linux preview fallback uses `/events` and
 `POST /control`. This keeps the UI reusable by Tizen and Android hosts.
+
+The desktop preview loads `hosts/http.js`, an HTTP host adapter that maps the
+shared callbacks to `/events` and `POST /control`. Native hosts should provide
+the same `RoonDisplayHost` object before loading `app.js`.
