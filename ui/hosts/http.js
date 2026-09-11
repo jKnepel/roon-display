@@ -8,7 +8,7 @@
         .then((state) => { if (!stopped) onState(state); })
         .catch((error) => { if (!stopped) { console.error("state poll:", error); if (onDisconnect) onDisconnect(); } });
       poll();
-      const timer = window.setInterval(poll, 1000);
+      const timer = window.setInterval(poll, 250);
       return () => { stopped = true; window.clearInterval(timer); };
     },
     async control(request) {

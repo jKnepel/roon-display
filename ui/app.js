@@ -23,6 +23,18 @@
     elements.controlStatus.textContent = command === "seek" ? "Seeking…" : "Sending…";
     try {
       const request = position === undefined ? { command } : { command, position };
+      const current = window.__roonDisplayState;
+      if (current && current.activeZone) {
+        if (command === "playpause") {
+          current.activeZone.state = current.activeZone.state === "playing" ? "paused" : "playing";
+          update(current);
+        } else if (command === "seek" && Number.isFinite(position)) {
+          progressPosition = position;
+          progressUpdatedAt = performance.now();
+          elements.elapsed.textContent = clock(position);
+          if (progressLength > 0) elements.progress.style.width = `${Math.min(100, position / progressLength * 100)}%`;
+        }
+      }
       if (typeof host.control === "function") {
         await host.control(request);
         elements.controlStatus.textContent = "";
