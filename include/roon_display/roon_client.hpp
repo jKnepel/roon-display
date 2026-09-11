@@ -5,12 +5,15 @@
 #include "roon_display/display_state.hpp"
 
 #include <cstdint>
+#include <functional>
 #include <utility>
 #include <optional>
 #include <string>
 #include <vector>
 
 namespace roon_display {
+
+using ArtworkCallback = std::function<void(const std::string&, const std::string&, const std::vector<std::uint8_t>&)>;
 
 struct ClientOptions {
     std::string display_name{"C++ Roon Display"};
@@ -25,6 +28,7 @@ public:
     void run();
     const DisplayStateStore& state() const { return state_; }
     void set_state_callback(DisplayStateStore::ChangeCallback callback) { state_.set_change_callback(std::move(callback)); }
+    void set_artwork_callback(ArtworkCallback callback) { artwork_callback_ = std::move(callback); }
 
 private:
     ClientOptions options_;
@@ -36,13 +40,16 @@ private:
     std::vector<std::string> display_subscription_ids_;
     std::string transport_subscription_id_;
     DisplayStateStore state_;
+    ArtworkCallback artwork_callback_;
+    std::map<std::string, std::string> artwork_requests_;
 
-    void send_request(const std::string& endpoint, const std::string& body = {});
+    std::uint64_t send_request(const std::string& endpoint, const std::string& body = {});
     void send_response(const MooMessage& request, const std::string& verb,
                        const std::string& name, const std::string& body = {});
     void send_display_changed();
     void handle_request(const MooMessage& message);
     void handle_response(const MooMessage& message);
+    void request_active_artwork();
     std::string registration_json() const;
     std::string displays_json() const;
 };

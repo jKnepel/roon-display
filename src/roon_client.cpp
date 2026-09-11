@@ -17,12 +17,13 @@ RoonClient::RoonClient(ClientOptions options) : options_(std::move(options)) {
     if (options_.display_key.empty()) options_.display_key = stable_display_key();
 }
 
-void RoonClient::send_request(const std::string& endpoint, const std::string& body) {
+std::uint64_t RoonClient::send_request(const std::string& endpoint, const std::string& body) {
     const auto id = next_request_id_++;
     if (options_.trace)
         std::cout << "-> REQUEST " << id << ' ' << endpoint
                   << (body.empty() ? "" : " " + body) << '\n';
     websocket_.send_binary(make_moo_request(id, endpoint, body));
+    return id;
 }
 
 void RoonClient::send_response(const MooMessage& request, const std::string& verb,
@@ -65,6 +66,17 @@ void RoonClient::send_display_changed() {
     }
 }
 
+void RoonClient::request_active_artwork() {
+    if (!active_zone_id_) return;
+    const auto zone = state_.snapshot().zones.find(*active_zone_id_);
+    if (zone == state_.snapshot().zones.end() || !zone->second.now_playing || !zone->second.now_playing->image_key) return;
+    const auto& key = *zone->second.now_playing->image_key;
+    for (const auto& request : artwork_requests_) if (request.second == key) return;
+    const auto id = send_request("com.roonlabs.image:1/get_image",
+        "{\"image_key\":\"" + json_escape(key) + "\",\"scale\":\"fit\",\"width\":1200,\"height\":1200,\"format\":\"image/jpeg\"}");
+    artwork_requests_[std::to_string(id)] = key;
+}
+
 void RoonClient::handle_response(const MooMessage& message) {
     const auto body = message.body_text();
     if (message.name == "Success" && core_id_.empty()) {
@@ -85,6 +97,14 @@ void RoonClient::handle_response(const MooMessage& message) {
         state_.apply_transport(message.name, body);
         if (message.name == "Subscribed")
             std::cout << "Transport zone subscription active\n";
+        request_active_artwork();
+    } else {
+        const auto artwork = artwork_requests_.find(message.request_id);
+        if (artwork != artwork_requests_.end()) {
+            if (message.name == "Success" && artwork_callback_)
+                artwork_callback_(artwork->second, message.content_type, message.body);
+            artwork_requests_.erase(artwork);
+        }
     }
 }
 
@@ -113,6 +133,7 @@ void RoonClient::handle_request(const MooMessage& request) {
         } else {
             active_zone_id_ = *zone;
             state_.set_active_zone(active_zone_id_);
+            request_active_artwork();
             std::cout << "Zone assigned: " << *zone << std::endl;
             send_response(request, "COMPLETE", "Success");
             send_display_changed();
@@ -174,11 +195,12 @@ void RoonClient::run() {
         std::string error;
         const auto message = parse_moo(bytes, &error);
         if (!message) throw std::runtime_error("invalid MOO message: " + error);
+        const std::string body_preview = message->body.empty() ? "" : (message->content_type == "application/json" ? " " + message->body_text() : " <binary " + std::to_string(message->body.size()) + " bytes>");
         if (options_.trace)
             std::cout << "<- " << message->verb << ' ' << message->request_id << ' '
                       << (message->verb == "REQUEST" ? message->service + "/" : "")
                       << message->name
-                      << (message->body.empty() ? "" : " " + message->body_text()) << '\n';
+                      << body_preview << '\n';
         if (message->verb == "REQUEST") handle_request(*message);
         else handle_response(*message);
     }

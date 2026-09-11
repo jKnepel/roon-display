@@ -176,7 +176,9 @@ std::string to_json(const DisplayState& state) {
                 out << ",\"nowPlaying\":{";
                 if (now.seek_position) out << "\"seekPosition\":" << *now.seek_position << ",";
                 if (now.length) out << "\"length\":" << *now.length << ",";
-                if (now.image_key) out << "\"imageKey\":\"" << json_escape(*now.image_key) << "\",";
+                if (now.image_key) {
+                    out << "\"imageKey\":\"" << json_escape(*now.image_key) << "\",\"artworkUrl\":\"/artwork/" << json_escape(*now.image_key) << "\",";
+                }
                 out << "\"twoLine\":{";
                 out << "\"line1\":\"" << json_escape(now.two_line.line1) << "\"";
                 if (now.two_line.line2) out << ",\"line2\":\"" << json_escape(*now.two_line.line2) << "\"";

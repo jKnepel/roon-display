@@ -40,11 +40,12 @@ int main() {
     check(json_string_field(R"({"core_id":"abc-123"})", "core_id") == "abc-123",
           "JSON string field extraction works");
     DisplayStateStore store;
-    store.apply_transport("Subscribed", R"({"zones":[{"zone_id":"z1","display_name":"Living Room","state":"playing","now_playing":{"seek_position":12.5,"length":240,"two_line":{"line1":"Artist","line2":"Track"}}}]})");
+    store.apply_transport("Subscribed", R"({"zones":[{"zone_id":"z1","display_name":"Living Room","state":"playing","now_playing":{"seek_position":12.5,"length":240,"image_key":"art","two_line":{"line1":"Artist","line2":"Track"}}}]})");
     check(store.snapshot().zones.at("z1").now_playing.has_value(), "zone now-playing parses");
     check(store.snapshot().zones.at("z1").now_playing->two_line.line2 == "Track", "now-playing text parses");
     store.set_active_zone("z1");
     check(store.snapshot().active_zone_id == "z1", "active zone updates");
+    check(to_json(store.snapshot()).find("artworkUrl") != std::string::npos, "state JSON includes artwork URL");
     std::cout << "All protocol tests passed\n";
 }
 

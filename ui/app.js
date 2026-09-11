@@ -45,6 +45,7 @@
       // Artwork retrieval is host-specific. The key is exposed as a CSS hook
       // now; a host can replace this with a blob/data URL later.
       elements.artwork.dataset.imageKey = now.imageKey;
+      if (now.artworkUrl) elements.artwork.style.backgroundImage = `url("${now.artworkUrl}")`;
     }
     elements.connection.classList.add("connected");
   }

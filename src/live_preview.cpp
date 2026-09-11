@@ -10,6 +10,7 @@
 #include <atomic>
 #include <fstream>
 #include <iostream>
+#include <map>
 #include <mutex>
 #include <sstream>
 #include <stdexcept>
@@ -28,10 +29,34 @@ void send_all(int fd, const std::string& text) {
     }
 }
 
+void send_bytes(int fd, const std::string& header, const std::vector<std::uint8_t>& bytes) {
+    send_all(fd, header);
+    std::size_t offset = 0;
+    while (offset < bytes.size()) {
+        const auto count = ::send(fd, bytes.data() + offset, bytes.size() - offset, MSG_NOSIGNAL);
+        if (count <= 0) throw std::runtime_error("preview socket closed");
+        offset += static_cast<std::size_t>(count);
+    }
+}
+
 class PreviewServer {
 public:
     PreviewServer(std::uint16_t port, std::string root) : port_(port), root_(std::move(root)) {}
     ~PreviewServer() { if (socket_ >= 0) ::close(socket_); }
+
+    void publish_state(const roon_display::DisplayState& state) {
+        auto json = roon_display::to_json(state);
+        {
+            std::lock_guard lock(mutex_);
+            for (const auto& [key, version] : artwork_versions_) {
+                const std::string old_url = "/artwork/" + key + "\"";
+                const std::string new_url = "/artwork/" + key + "?v=" + std::to_string(version) + "\"";
+                const auto position = json.find(old_url);
+                if (position != std::string::npos) json.replace(position, old_url.size(), new_url);
+            }
+        }
+        publish(json);
+    }
 
     void publish(const std::string& json) {
         std::lock_guard lock(mutex_);
@@ -40,6 +65,12 @@ public:
             try { send_all(fd, event); return false; }
             catch (...) { ::close(fd); return true; }
         }), clients_.end());
+    }
+
+    void cache_artwork(const std::string& key, const std::string& mime, const std::vector<std::uint8_t>& bytes) {
+        std::lock_guard lock(mutex_);
+        artwork_[key] = {mime.empty() ? "image/jpeg" : mime, bytes};
+        ++artwork_versions_[key];
     }
 
     void run() {
@@ -67,6 +98,10 @@ private:
     int socket_{-1};
     std::mutex mutex_;
     std::vector<int> clients_;
+    std::map<std::string, std::pair<std::string, std::vector<std::uint8_t>>> artwork_;
+    std::map<std::string, std::size_t> artwork_versions_;
+
+
 
     void handle(int fd) {
         char buffer[4096]{};
@@ -86,6 +121,21 @@ private:
                 std::lock_guard lock(mutex_);
                 clients_.push_back(fd);
             } catch (...) { ::close(fd); }
+            return;
+        }
+        if (path.starts_with("/artwork/")) {
+            const auto key = path.substr(9);
+            const auto query = key.find("?");
+            const auto artwork_key = query == std::string::npos ? key : key.substr(0, query);
+            std::lock_guard lock(mutex_);
+            const auto image = artwork_.find(artwork_key);
+            if (image == artwork_.end()) {
+                send_all(fd, "HTTP/1.1 404 Not Found\r\nContent-Length: 0\r\n\r\n");
+            } else {
+                const auto& [mime, bytes] = image->second;
+                send_bytes(fd, "HTTP/1.1 200 OK\r\nContent-Type: " + mime + "\r\nContent-Length: " + std::to_string(bytes.size()) + "\r\n\r\n", bytes);
+            }
+            ::close(fd);
             return;
         }
         if (path == "/" || path == "/ui" || path == "/ui/") path = "/ui/index.html";
@@ -112,7 +162,12 @@ int main(int argc, char** argv) {
         PreviewServer server(port, root);
         roon_display::RoonClient client({"Live Roon Preview", {}, "com.roonlabs.display_zone", true});
         client.set_state_callback([&server](const roon_display::DisplayState& state) {
-            server.publish(roon_display::to_json(state));
+            server.publish_state(state);
+        });
+        client.set_artwork_callback([&server, &client](const std::string& key, const std::string& mime, const std::vector<std::uint8_t>& bytes) {
+            server.cache_artwork(key, mime, bytes);
+            server.publish_state(client.state().snapshot());
+            std::cout << "Artwork cached: " << key << " (" << bytes.size() << " bytes)\n";
         });
         std::thread roon_thread([&client] { client.run(); });
         server.run();
