@@ -13,7 +13,7 @@ modules:
     buildsystem: cmake-ninja
     config-opts:
       - -DCMAKE_BUILD_TYPE=Release
-      - -DROON_DISPLAY_BUILD_NATIVE_SHELL=ON
+      - -DROON_DISPLAY_BUILD_DESKTOP=ON
       - -DROON_DISPLAY_FLATPAK=ON
     sources:
       - type: dir

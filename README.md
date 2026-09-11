@@ -1,8 +1,7 @@
 # roon-display
 
-Experimental native Roon Zone Display client in C++20. It discovers Roon without
-a configured IP, registers the observed Roon Web Display services, and exposes one
-display candidate.
+Experimental native Roon Zone Display client in C++20. This app displays Roon´s Now Playing information
+by advertising itself as a display to the Roon Web Display services.
 
 This project is not affiliated with or supported by Roon Labs. The Zone Display
 service is unpublished and may change between releases.
@@ -54,17 +53,15 @@ reconnect, content messages, rendering, and Tizen support remain future work.
 See [docs/protocol.md](docs/protocol.md) for evidence boundaries and capture steps.
 
 
-## Optional native desktop shell
+## Browser preview
 
-When GTK3 and WebKitGTK development packages are installed, CMake also builds
-`native-shell`. It embeds the shared UI in a native window:
+The development UI is hosted by `live-preview` and opened directly in a
+browser:
 
 ```sh
-./build/native-shell http://127.0.0.1:8787/ui/
+./build/live-preview 8787 .
+# open http://127.0.0.1:8787/ui/
 ```
-
-Start `live-preview` first. Configure with
-`-DROON_DISPLAY_BUILD_NATIVE_SHELL=OFF` to suppress dependency detection.
 
 ## Flatpak packaging
 
