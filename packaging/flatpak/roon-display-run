@@ -1,6 +1,2 @@
 #!/bin/sh
-set -eu
-roon-display-preview 8787 /app/share/roon-display >/tmp/roon-display.log 2>&1 &
-preview_pid=$!
-trap "kill $preview_pid 2>/dev/null || true" EXIT INT TERM
-native-shell http://127.0.0.1:8787/ui/
+exec /app/bin/roon-display-desktop

@@ -74,10 +74,12 @@ Install Flatpak tooling and the GNOME runtime/SDK, then build and run:
 ```sh
 sudo apt install flatpak flatpak-builder
 flatpak remote-add --if-not-exists flathub https://flathub.org/repo/flathub.flatpakrepo
-flatpak install flathub org.gnome.Sdk//46 org.gnome.Platform//46
+flatpak install flathub org.gnome.Sdk//50 org.gnome.Platform//50
 flatpak-builder --user --install --force-clean build-flatpak packaging/flatpak/com.julianknepel.roon-display.yml
 flatpak run com.julianknepel.roon-display
 ```
 
-The bundle grants LAN access for Roon discovery and starts the preview server and
-native WebKit shell together as one desktop application.
+The bundle grants LAN access for Roon discovery and launches the native WebKit
+desktop shell. The desktop executable serves its UI through an in-process
+`roon-display://` scheme and communicates with the UI through a native WebKit
+bridge.

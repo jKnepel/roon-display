@@ -4,6 +4,7 @@
 
 #include <unistd.h>
 
+#include <charconv>
 #include <chrono>
 #include <functional>
 #include <iomanip>
@@ -12,6 +13,16 @@
 #include <stdexcept>
 
 namespace roon_display {
+
+namespace {
+
+std::string json_number(double value) {
+    char buffer[64]{};
+    const auto result = std::to_chars(buffer, buffer + sizeof(buffer), value);
+    return result.ec == std::errc{} ? std::string(buffer, result.ptr) : "0";
+}
+
+} // namespace
 
 RoonClient::RoonClient(ClientOptions options) : options_(std::move(options)) {
     if (options_.display_key.empty()) options_.display_key = stable_display_key();
@@ -38,7 +49,7 @@ bool RoonClient::seek(double position) {
     if (!active_zone_id_ || position < 0) return false;
     send_request("com.roonlabs.transport:2/seek",
                  "{\"zone_or_output_id\":\"" + json_escape(*active_zone_id_) +
-                 "\",\"how\":\"absolute\",\"seconds\":" + std::to_string(position) + "}");
+                 "\",\"how\":\"absolute\",\"seconds\":" + json_number(position) + "}");
     return true;
 }
 
@@ -113,7 +124,13 @@ void RoonClient::handle_response(const MooMessage& message) {
         send_request("com.roonlabs.transport:2/subscribe_zones",
                      "{\"subscription_key\":0}");
     } else if (!transport_subscription_id_.empty() &&
-               message.request_id == transport_subscription_id_) {
+               message.request_id == transport_subscription_id_ &&
+               // Roon uses independent request-id sequences for requests in
+               // each direction. A pairing request can therefore reuse the
+               // id of our transport subscription. Its Subscribed response
+               // contains paired_core_id, not zones, and must not replace the
+               // transport state.
+               !(message.name == "Subscribed" && body.find("\"zones\"") == std::string::npos)) {
         state_.apply_transport(message.name, body);
         if (message.name == "Subscribed")
             std::cout << "Transport zone subscription active\n";
@@ -241,4 +258,3 @@ std::string stable_display_key() {
 }
 
 } // namespace roon_display
-

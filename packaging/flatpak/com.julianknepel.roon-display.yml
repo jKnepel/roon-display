@@ -1,6 +1,6 @@
 app-id: com.julianknepel.roon-display
 runtime: org.gnome.Platform
-runtime-version: "46"
+runtime-version: "50"
 sdk: org.gnome.Sdk
 command: roon-display-run
 finish-args:
@@ -14,12 +14,10 @@ modules:
     config-opts:
       - -DCMAKE_BUILD_TYPE=Release
       - -DROON_DISPLAY_BUILD_NATIVE_SHELL=ON
+      - -DROON_DISPLAY_FLATPAK=ON
     sources:
       - type: dir
         path: ../..
     build-commands:
-      - install -Dm755 build/live-preview /app/bin/roon-display-preview
-      - install -Dm755 build/native-shell /app/bin/native-shell
       - install -Dm755 packaging/flatpak/roon-display-run /app/bin/roon-display-run
-      - cp -r ui /app/share/roon-display/ui
       - install -Dm644 packaging/flatpak/com.julianknepel.roon-display.desktop /app/share/applications/com.julianknepel.roon-display.desktop

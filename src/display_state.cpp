@@ -3,7 +3,9 @@
 #include "roon_display/moo.hpp"
 
 #include <cctype>
+#include <charconv>
 #include <cstdlib>
+#include <iostream>
 #include <stdexcept>
 #include <sstream>
 #include <variant>
@@ -51,9 +53,14 @@ private:
         case 'f': if (input_.compare(position_, 5, "false") == 0) { position_ += 5; return false; } break;
         case 'n': if (input_.compare(position_, 4, "null") == 0) { position_ += 4; return nullptr; } break;
         default: {
-            char* end = nullptr;
-            const auto number = std::strtod(input_.c_str() + position_, &end);
-            if (end != input_.c_str() + position_) { position_ = static_cast<std::size_t>(end - input_.c_str()); return number; }
+            double number = 0;
+            const auto begin = input_.data() + position_;
+            const auto end = input_.data() + input_.size();
+            const auto parsed = std::from_chars(begin, end, number);
+            if (parsed.ec == std::errc{} && parsed.ptr != begin) {
+                position_ = static_cast<std::size_t>(parsed.ptr - input_.data());
+                return number;
+            }
         }}
         throw std::runtime_error("invalid JSON value");
     }
@@ -66,7 +73,12 @@ private:
             if (!consume(':')) throw std::runtime_error("expected object colon");
             result.emplace(*key.string(), value_at());
             if (consume('}')) return result;
-            if (!consume(',')) throw std::runtime_error("expected object comma");
+            if (!consume(',')) {
+                std::ostringstream error;
+                error << "expected object comma at byte " << position_;
+                if (position_ < input_.size()) error << " (got '" << input_[position_] << "')";
+                throw std::runtime_error(error.str());
+            }
         }
     }
     Json array() {
@@ -93,6 +105,28 @@ private:
             case '/': result += '/'; break; case 'b': result += '\b'; break;
             case 'f': result += '\f'; break; case 'n': result += '\n'; break;
             case 'r': result += '\r'; break; case 't': result += '\t'; break;
+            case 'u': {
+                if (position_ + 4 > input_.size()) throw std::runtime_error("short unicode escape");
+                unsigned codepoint = 0;
+                for (int i = 0; i < 4; ++i) {
+                    const auto c = input_[position_++];
+                    const auto digit = c >= '0' && c <= '9' ? c - '0' :
+                                       c >= 'a' && c <= 'f' ? c - 'a' + 10 :
+                                       c >= 'A' && c <= 'F' ? c - 'A' + 10 : -1;
+                    if (digit < 0) throw std::runtime_error("invalid unicode escape");
+                    codepoint = (codepoint << 4) | static_cast<unsigned>(digit);
+                }
+                if (codepoint <= 0x7f) result += static_cast<char>(codepoint);
+                else if (codepoint <= 0x7ff) {
+                    result += static_cast<char>(0xc0 | (codepoint >> 6));
+                    result += static_cast<char>(0x80 | (codepoint & 0x3f));
+                } else {
+                    result += static_cast<char>(0xe0 | (codepoint >> 12));
+                    result += static_cast<char>(0x80 | ((codepoint >> 6) & 0x3f));
+                    result += static_cast<char>(0x80 | (codepoint & 0x3f));
+                }
+                break;
+            }
             default: result += escaped; break;
             }
         }
@@ -226,7 +260,9 @@ void DisplayStateStore::apply_settings(const std::string& json) {
         if (const auto* lyrics = member(*values, "enable_lyrics"); lyrics && lyrics->boolean()) settings.enable_lyrics = *lyrics->boolean();
         state_.settings = settings;
         changed();
-    } catch (const std::exception&) { }
+    } catch (const std::exception& error) {
+        std::cerr << "display state settings parse: " << error.what() << '\n';
+    }
 }
 
 void DisplayStateStore::apply_transport(const std::string& response, const std::string& json) {
@@ -246,8 +282,9 @@ void DisplayStateStore::apply_transport(const std::string& response, const std::
                 for (const auto& item : *seeks->array()) { auto it = state_.zones.find(string_member(item, "zone_id")); if (it != state_.zones.end()) { it->second.seek_position = number_member(item, "seek_position"); it->second.queue_time_remaining = number_member(item, "queue_time_remaining"); if (it->second.now_playing) it->second.now_playing->seek_position = it->second.seek_position; } }
         }
         changed();
-    } catch (const std::exception&) { }
+    } catch (const std::exception& error) {
+        std::cerr << "display state transport parse (" << response << "): " << error.what() << '\n';
+    }
 }
 
 } // namespace roon_display
-

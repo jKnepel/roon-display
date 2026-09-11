@@ -191,6 +191,7 @@ private:
 
 } // namespace
 
+#ifndef ROON_DISPLAY_EMBEDDED_PREVIEW
 int main(int argc, char** argv) {
     const auto port = static_cast<std::uint16_t>(argc > 1 ? std::stoi(argv[1]) : 8787);
     const std::string root = argc > 2 ? argv[2] : ".";
@@ -213,3 +214,4 @@ int main(int argc, char** argv) {
         return 1;
     }
 }
+#endif // ROON_DISPLAY_EMBEDDED_PREVIEW
