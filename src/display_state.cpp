@@ -3,11 +3,10 @@
 #include "roon_display/moo.hpp"
 
 #include <cctype>
-#include <charconv>
-#include <cstdlib>
-#include <iostream>
+#include <cmath>
 #include <stdexcept>
 #include <sstream>
+#include <locale>
 #include <variant>
 
 namespace roon_display {
@@ -53,14 +52,37 @@ private:
         case 'f': if (input_.compare(position_, 5, "false") == 0) { position_ += 5; return false; } break;
         case 'n': if (input_.compare(position_, 4, "null") == 0) { position_ += 4; return nullptr; } break;
         default: {
-            double number = 0;
-            const auto begin = input_.data() + position_;
-            const auto end = input_.data() + input_.size();
-            const auto parsed = std::from_chars(begin, end, number);
-            if (parsed.ec == std::errc{} && parsed.ptr != begin) {
-                position_ = static_cast<std::size_t>(parsed.ptr - input_.data());
-                return number;
+            const auto start = position_;
+            const bool negative = input_[position_] == '-';
+            if (input_[position_] == '-' || input_[position_] == '+') ++position_;
+            bool integer_digits = false;
+            double value = 0;
+            while (position_ < input_.size() && std::isdigit(static_cast<unsigned char>(input_[position_]))) {
+                integer_digits = true;
+                value = value * 10 + (input_[position_++] - '0');
             }
+            if (!integer_digits) { position_ = start; break; }
+            if (position_ < input_.size() && input_[position_] == '.') {
+                ++position_;
+                double place = 0.1;
+                while (position_ < input_.size() && std::isdigit(static_cast<unsigned char>(input_[position_]))) {
+                    value += (input_[position_++] - '0') * place;
+                    place *= 0.1;
+                }
+            }
+            int exponent = 0;
+            bool exponent_negative = false;
+            if (position_ < input_.size() && (input_[position_] == 'e' || input_[position_] == 'E')) {
+                ++position_;
+                if (position_ < input_.size() && (input_[position_] == '-' || input_[position_] == '+'))
+                    exponent_negative = input_[position_++] == '-';
+                const auto exponent_start = position_;
+                while (position_ < input_.size() && std::isdigit(static_cast<unsigned char>(input_[position_])))
+                    exponent = exponent * 10 + (input_[position_++] - '0');
+                if (position_ == exponent_start) { position_ = start; break; }
+            }
+            value *= std::pow(10.0, exponent_negative ? -exponent : exponent);
+            return negative ? -value : value;
         }}
         throw std::runtime_error("invalid JSON value");
     }
@@ -73,11 +95,7 @@ private:
             if (!consume(':')) throw std::runtime_error("expected object colon");
             result.emplace(*key.string(), value_at());
             if (consume('}')) return result;
-            if (!consume(',')) {
-                std::ostringstream error;
-                error << "expected object comma at byte " << position_;
-                if (position_ < input_.size()) error << " (got '" << input_[position_] << "')";
-                throw std::runtime_error(error.str());
+            if (!consume(',')) {                throw std::runtime_error("expected object comma");
             }
         }
     }
@@ -206,6 +224,7 @@ const char* to_string(PlaybackState state) {
 
 std::string to_json(const DisplayState& state) {
     std::ostringstream out;
+    out.imbue(std::locale::classic());
     out << "{\"activeZone\":";
     if (!state.active_zone_id) out << "null";
     else {
@@ -260,9 +279,7 @@ void DisplayStateStore::apply_settings(const std::string& json) {
         if (const auto* lyrics = member(*values, "enable_lyrics"); lyrics && lyrics->boolean()) settings.enable_lyrics = *lyrics->boolean();
         state_.settings = settings;
         changed();
-    } catch (const std::exception& error) {
-        std::cerr << "display state settings parse: " << error.what() << '\n';
-    }
+    } catch (const std::exception&) { }
 }
 
 void DisplayStateStore::apply_transport(const std::string& response, const std::string& json) {
@@ -282,9 +299,7 @@ void DisplayStateStore::apply_transport(const std::string& response, const std::
                 for (const auto& item : *seeks->array()) { auto it = state_.zones.find(string_member(item, "zone_id")); if (it != state_.zones.end()) { it->second.seek_position = number_member(item, "seek_position"); it->second.queue_time_remaining = number_member(item, "queue_time_remaining"); if (it->second.now_playing) it->second.now_playing->seek_position = it->second.seek_position; } }
         }
         changed();
-    } catch (const std::exception& error) {
-        std::cerr << "display state transport parse (" << response << "): " << error.what() << '\n';
-    }
+    } catch (const std::exception&) { }
 }
 
 } // namespace roon_display

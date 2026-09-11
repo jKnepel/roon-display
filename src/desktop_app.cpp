@@ -57,7 +57,6 @@ void finish_text(WebKitURISchemeRequest* request, const std::string& text, const
 void handle_uri(WebKitURISchemeRequest* request, gpointer user_data) {
     auto& resources = *static_cast<DesktopResources*>(user_data);
     const auto path = uri_path(webkit_uri_scheme_request_get_uri(request));
-    std::cerr << "[desktop] resource " << path << '\n';
     if (path.find("..") != std::string::npos) {
         webkit_uri_scheme_request_finish_error(request, g_error_new_literal(G_IO_ERROR, G_IO_ERROR_PERMISSION_DENIED, "invalid resource path"));
         return;
@@ -97,7 +96,6 @@ struct DesktopApp {
 
     void publish_state(const roon_display::DisplayState& state) {
         auto json = roon_display::to_json(state);
-        std::cerr << "[desktop] state callback (" << json.size() << " bytes)\n";
         std::lock_guard lock(resources.mutex);
         for (const auto& [key, version] : resources.artwork_versions) {
             const std::string old_url = "\"/artwork/" + key + "\"";
@@ -122,7 +120,6 @@ struct DesktopApp {
             // delivery must not depend on that optional symbol being present.
             const auto script = "if (window.RoonDisplay) window.RoonDisplay.update(" + message->second + ");";
             webkit_web_view_run_javascript(message->first, script.c_str(), nullptr, nullptr, nullptr);
-            std::cerr << "[desktop] state sent to WebKit\n";
             delete message;
             return G_SOURCE_REMOVE;
         }, message);
@@ -151,7 +148,6 @@ void on_script_message(WebKitUserContentManager*, WebKitJavascriptResult* result
     if (!text) return;
     const std::string body(text);
     g_free(text);
-    std::cerr << "[desktop] bridge message: " << body << '\n';
     const auto type = roon_display::json_string_field(body, "type");
     if (type && *type == "ready") {
         app.push_state();
@@ -163,15 +159,8 @@ void on_script_message(WebKitUserContentManager*, WebKitJavascriptResult* result
 }
 
 void on_load_changed(WebKitWebView*, WebKitLoadEvent event, gpointer data) {
-    std::cerr << "[desktop] load event " << static_cast<int>(event) << '\n';
     if (event == WEBKIT_LOAD_FINISHED)
         static_cast<DesktopApp*>(data)->push_state();
-}
-
-gboolean on_load_failed(WebKitWebView*, WebKitLoadEvent, const gchar* failing_uri, GError* error, gpointer) {
-    std::cerr << "[desktop] load failed " << (failing_uri ? failing_uri : "")
-              << ": " << (error ? error->message : "unknown error") << '\n';
-    return FALSE;
 }
 
 } // namespace
@@ -193,7 +182,6 @@ int main(int argc, char** argv) {
     g_signal_connect(manager, "script-message-received::roonDisplay", G_CALLBACK(on_script_message), &app);
     app.view = WEBKIT_WEB_VIEW(webkit_web_view_new_with_user_content_manager(manager));
     g_signal_connect(app.view, "load-changed", G_CALLBACK(on_load_changed), &app);
-    g_signal_connect(app.view, "load-failed", G_CALLBACK(on_load_failed), nullptr);
     g_object_unref(manager);
 
     GtkWidget* window = gtk_window_new(GTK_WINDOW_TOPLEVEL);
