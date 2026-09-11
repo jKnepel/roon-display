@@ -35,3 +35,22 @@ window.RoonDisplay.update({
 
 The host owns Roon protocol and artwork retrieval. The UI only consumes the
 normalized display-state contract.
+
+## Native host adapter
+
+A native host may define `window.RoonDisplayHost` before loading `app.js`:
+
+```js
+window.RoonDisplayHost = {
+  subscribe(onState, onDisconnect) {
+    // Call onState(normalizedDisplayState) for each update.
+  },
+  control(request) {
+    // request is { command: "playpause" | "previous" | "next" }
+    // or { command: "seek", position: seconds }.
+  }
+};
+```
+
+When this object is absent, the Linux preview fallback uses `/events` and
+`POST /control`. This keeps the UI reusable by Tizen and Android hosts.

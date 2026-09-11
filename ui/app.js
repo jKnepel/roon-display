@@ -6,6 +6,7 @@
 (function () {
   "use strict";
   const $ = (id) => document.getElementById(id);
+  const host = window.RoonDisplayHost || {};
   let currentArtworkUrl = null;
   const elements = {
     zone: $("zone"), state: $("state"), track: $("track"), artist: $("artist"),
@@ -15,7 +16,12 @@
 
   async function command(command, position) {
     try {
-      const response = await fetch("/control", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(position === undefined ? { command } : { command, position }) });
+      const request = position === undefined ? { command } : { command, position };
+      if (typeof host.control === "function") {
+        await host.control(request);
+        return;
+      }
+      const response = await fetch("/control", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(request) });
       if (!response.ok) console.warn("Roon control rejected:", command);
     } catch (error) { console.error("Roon control:", error); }
   }
@@ -85,6 +91,10 @@
   // normalize it to the UI contract, and replay the state transition once.
   async function fixtureMode() {
     if (!location.search.includes("fixture")) {
+      if (typeof host.subscribe === "function") {
+        host.subscribe(update, () => elements.connection.classList.remove("connected"));
+        return;
+      }
       const events = new EventSource("/events");
       events.onmessage = (event) => { try { update(JSON.parse(event.data)); } catch (error) { console.error("state event:", error); } };
       events.onerror = () => elements.connection.classList.remove("connected");
