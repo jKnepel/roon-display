@@ -11,6 +11,8 @@
 #include <string>
 #include <mutex>
 #include <vector>
+#include <atomic>
+#include <condition_variable>
 
 namespace roon_display {
 
@@ -27,6 +29,7 @@ class RoonClient {
 public:
     explicit RoonClient(ClientOptions options);
     void run();
+    void stop();
     const DisplayStateStore& state() const { return state_; }
     void set_state_callback(DisplayStateStore::ChangeCallback callback) { state_.set_change_callback(std::move(callback)); }
     void set_artwork_callback(ArtworkCallback callback) { artwork_callback_ = std::move(callback); }
@@ -35,6 +38,9 @@ public:
 
 private:
     ClientOptions options_;
+    std::atomic<bool> stop_requested_{false};
+    std::condition_variable stop_condition_;
+    std::mutex stop_mutex_;
     WebSocket websocket_;
     std::uint64_t next_request_id_{0};
     std::string core_id_;

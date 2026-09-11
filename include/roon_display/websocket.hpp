@@ -1,6 +1,7 @@
 #pragma once
 
 #include <cstdint>
+#include <atomic>
 #include <span>
 #include <string>
 #include <vector>
@@ -21,7 +22,7 @@ public:
     void close();
 
 private:
-    int socket_{-1};
+    std::atomic<int> socket_{-1};
     std::vector<std::uint8_t> pending_;
 
     void send_frame(std::uint8_t opcode, std::span<const std::uint8_t> payload);

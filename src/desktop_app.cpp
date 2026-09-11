@@ -13,6 +13,7 @@
 #include <string>
 #include <thread>
 #include <vector>
+#include <deque>
 #include <iostream>
 
 namespace {
@@ -22,6 +23,10 @@ struct DesktopResources {
     std::mutex mutex;
     std::map<std::string, std::pair<std::string, std::vector<std::uint8_t>>> artwork;
     std::map<std::string, std::size_t> artwork_versions;
+    std::deque<std::string> artwork_order;
+    std::size_t artwork_bytes{0};
+    static constexpr std::size_t max_artwork_bytes{64 * 1024 * 1024};
+    static constexpr std::size_t max_artwork_entries{128};
 };
 
 std::string uri_path(const std::string& uri) {
@@ -171,7 +176,7 @@ int main(int argc, char** argv) {
     DesktopApp app(root);
     app.client.set_state_callback([&app](const roon_display::DisplayState& state) { app.publish_state(state); });
     app.client.set_artwork_callback([&app](const std::string& key, const std::string& mime, const std::vector<std::uint8_t>& bytes) {
-        { std::lock_guard lock(app.resources.mutex); app.resources.artwork[key] = {mime.empty() ? "image/jpeg" : mime, bytes}; ++app.resources.artwork_versions[key]; }
+        { std::lock_guard lock(app.resources.mutex); const auto old = app.resources.artwork.find(key); if (old != app.resources.artwork.end()) app.resources.artwork_bytes -= old->second.second.size(); app.resources.artwork[key] = {mime.empty() ? "image/jpeg" : mime, bytes}; app.resources.artwork_bytes += bytes.size(); app.resources.artwork_order.push_back(key); ++app.resources.artwork_versions[key]; while ((app.resources.artwork_bytes > app.resources.max_artwork_bytes || app.resources.artwork.size() > app.resources.max_artwork_entries) && !app.resources.artwork_order.empty()) { const auto evicted = app.resources.artwork_order.front(); app.resources.artwork_order.pop_front(); if (evicted == key && (app.resources.artwork_bytes > app.resources.max_artwork_bytes || app.resources.artwork.size() > app.resources.max_artwork_entries)) continue; const auto it = app.resources.artwork.find(evicted); if (it != app.resources.artwork.end()) { app.resources.artwork_bytes -= it->second.second.size(); app.resources.artwork.erase(it); } app.resources.artwork_versions.erase(evicted); } }
         app.publish_state(app.client.state().snapshot());
     });
 
@@ -194,6 +199,7 @@ int main(int argc, char** argv) {
 
     std::thread roon_thread([&app] { app.client.run(); });
     gtk_main();
-    roon_thread.detach();
+    app.client.stop();
+    roon_thread.join();
     return 0;
 }

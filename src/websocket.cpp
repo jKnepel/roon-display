@@ -50,6 +50,7 @@ WebSocket::~WebSocket() { close(); }
 
 void WebSocket::connect(const std::string& host, std::uint16_t port,
                         const std::string& path) {
+    pending_.clear();
     close();
     addrinfo hints{};
     hints.ai_family = AF_UNSPEC;
@@ -60,12 +61,12 @@ void WebSocket::connect(const std::string& host, std::uint16_t port,
         throw std::runtime_error("could not resolve Roon Core address");
     for (auto* address = addresses.value; address; address = address->ai_next) {
         socket_ = ::socket(address->ai_family, address->ai_socktype, address->ai_protocol);
-        if (socket_ < 0) continue;
-        if (::connect(socket_, address->ai_addr, address->ai_addrlen) == 0) break;
-        ::close(socket_);
+        if (socket_.load() < 0) continue;
+        if (::connect(socket_.load(), address->ai_addr, address->ai_addrlen) == 0) break;
+        ::close(socket_.load());
         socket_ = -1;
     }
-    if (socket_ < 0) throw std::runtime_error("could not connect to Roon Core");
+    if (socket_.load() < 0) throw std::runtime_error("could not connect to Roon Core");
 
     std::array<std::uint8_t, 16> nonce{};
     std::random_device random;
@@ -74,13 +75,13 @@ void WebSocket::connect(const std::string& host, std::uint16_t port,
         "GET " + path + " HTTP/1.1\r\nHost: " + host + ":" + port_text +
         "\r\nUpgrade: websocket\r\nConnection: Upgrade\r\nSec-WebSocket-Key: " +
         base64(nonce) + "\r\nSec-WebSocket-Version: 13\r\n\r\n";
-    send_all(socket_, std::span(reinterpret_cast<const std::uint8_t*>(request.data()),
+    send_all(socket_.load(), std::span(reinterpret_cast<const std::uint8_t*>(request.data()),
                                 request.size()));
 
     std::string response;
     std::array<std::uint8_t, 2048> buffer{};
     while (response.find("\r\n\r\n") == std::string::npos) {
-        const auto count = ::recv(socket_, buffer.data(), buffer.size(), 0);
+        const auto count = ::recv(socket_.load(), buffer.data(), buffer.size(), 0);
         if (count <= 0) throw std::runtime_error("WebSocket handshake was closed");
         response.append(reinterpret_cast<const char*>(buffer.data()), count);
         if (response.size() > 65536) throw std::runtime_error("WebSocket handshake too large");
@@ -101,14 +102,14 @@ void WebSocket::read_exact(std::span<std::uint8_t> output) {
         offset = count;
     }
     while (offset < output.size()) {
-        const auto count = ::recv(socket_, output.data() + offset, output.size() - offset, 0);
+        const auto count = ::recv(socket_.load(), output.data() + offset, output.size() - offset, 0);
         if (count <= 0) throw std::runtime_error("WebSocket connection closed");
         offset += static_cast<std::size_t>(count);
     }
 }
 
 void WebSocket::send_frame(std::uint8_t opcode, std::span<const std::uint8_t> payload) {
-    if (socket_ < 0) throw std::runtime_error("WebSocket is not connected");
+    if (socket_.load() < 0) throw std::runtime_error("WebSocket is not connected");
     std::vector<std::uint8_t> frame{static_cast<std::uint8_t>(0x80 | opcode)};
     if (payload.size() <= 125) {
         frame.push_back(static_cast<std::uint8_t>(0x80 | payload.size()));
@@ -127,7 +128,7 @@ void WebSocket::send_frame(std::uint8_t opcode, std::span<const std::uint8_t> pa
     frame.insert(frame.end(), mask.begin(), mask.end());
     for (std::size_t i = 0; i < payload.size(); ++i)
         frame.push_back(payload[i] ^ mask[i % mask.size()]);
-    send_all(socket_, frame);
+    send_all(socket_.load(), frame);
 }
 
 void WebSocket::send_binary(std::span<const std::uint8_t> payload) {
@@ -179,12 +180,11 @@ std::vector<std::uint8_t> WebSocket::receive_message() {
 }
 
 void WebSocket::close() {
-    if (socket_ >= 0) {
-        ::shutdown(socket_, SHUT_RDWR);
-        ::close(socket_);
-        socket_ = -1;
+    const int socket = socket_.exchange(-1);
+    if (socket >= 0) {
+        ::shutdown(socket, SHUT_RDWR);
+        ::close(socket);
     }
-    pending_.clear();
 }
 
 } // namespace roon_display

@@ -17,6 +17,7 @@
 #include <string>
 #include <thread>
 #include <vector>
+#include <deque>
 
 namespace {
 
@@ -70,8 +71,20 @@ public:
 
     void cache_artwork(const std::string& key, const std::string& mime, const std::vector<std::uint8_t>& bytes) {
         std::lock_guard lock(mutex_);
-        artwork_[key] = {mime.empty() ? "image/jpeg" : mime, bytes};
+        const auto type = mime.empty() ? "image/jpeg" : mime;
+        const auto old = artwork_.find(key);
+        if (old != artwork_.end()) artwork_bytes_ -= old->second.second.size();
+        artwork_[key] = {type, bytes};
+        artwork_bytes_ += bytes.size();
+        artwork_order_.push_back(key);
         ++artwork_versions_[key];
+        while ((artwork_bytes_ > max_artwork_bytes_ || artwork_.size() > max_artwork_entries_) && !artwork_order_.empty()) {
+            const auto evicted = artwork_order_.front();
+            artwork_order_.pop_front();
+            if (evicted == key && artwork_bytes_ > max_artwork_bytes_) continue;
+            const auto it = artwork_.find(evicted);
+            if (it != artwork_.end()) { artwork_bytes_ -= it->second.second.size(); artwork_.erase(it); } artwork_versions_.erase(evicted);
+        }
     }
 
     void run(roon_display::RoonClient& client) {
@@ -101,6 +114,10 @@ private:
     std::vector<int> clients_;
     std::map<std::string, std::pair<std::string, std::vector<std::uint8_t>>> artwork_;
     std::map<std::string, std::size_t> artwork_versions_;
+    std::deque<std::string> artwork_order_;
+    std::size_t artwork_bytes_{0};
+    static constexpr std::size_t max_artwork_bytes_{64 * 1024 * 1024};
+    static constexpr std::size_t max_artwork_entries_{128};
     std::string latest_state_{"{\"activeZone\":null}"};
 
 

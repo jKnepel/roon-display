@@ -215,32 +215,47 @@ void RoonClient::handle_request(const MooMessage& request) {
     }
 }
 
-void RoonClient::run() {
-    std::cout << "Roon Display\n------------\nAdvertising:\n  Name: " << options_.display_name
-              << "\n  Key: " << options_.display_key << "\n\nWaiting for Roon...\n";
-    SoodDiscovery discovery;
-    std::optional<SoodMessage> found;
-    while (!found) found = discovery.discover(std::chrono::seconds(5));
-    const auto port = static_cast<std::uint16_t>(
-        std::stoi(*found->properties.at("http_port")));
-    std::cout << "Roon Core discovered at " << found->source_address << ':' << port << '\n';
-    websocket_.connect(found->source_address, port);
-    send_request("com.roonlabs.registry:1/info");
+void RoonClient::stop() {
+    stop_requested_.store(true);
+    websocket_.close();
+    stop_condition_.notify_all();
+}
 
-    for (;;) {
-        const auto bytes = websocket_.receive_message();
-        std::string error;
-        const auto message = parse_moo(bytes, &error);
-        if (!message) throw std::runtime_error("invalid MOO message: " + error);
-        const std::string body_preview = message->body.empty() ? "" : (message->content_type == "application/json" ? " " + message->body_text() : " <binary " + std::to_string(message->body.size()) + " bytes>");
-        if (options_.trace)
-            std::cout << "<- " << message->verb << ' ' << message->request_id << ' '
-                      << (message->verb == "REQUEST" ? message->service + "/" : "")
-                      << message->name
-                      << body_preview << '\n';
-        if (message->verb == "REQUEST") handle_request(*message);
-        else handle_response(*message);
+void RoonClient::run() {
+    std::cout << "Roon Display\n------------\nAdvertising:\n  Name: " << options_.display_name << "\n  Key: " << options_.display_key << "\n\nWaiting for Roon...\n";
+    while (!stop_requested_.load()) {
+        try {
+            SoodDiscovery discovery;
+            std::optional<SoodMessage> found;
+            while (!stop_requested_.load() && !found) found = discovery.discover(std::chrono::seconds(5));
+            if (stop_requested_.load()) break;
+            const auto port = static_cast<std::uint16_t>(std::stoi(*found->properties.at("http_port")));
+            std::cout << "Roon Core discovered at " << found->source_address << ":" << port << std::endl;
+            websocket_.connect(found->source_address, port);
+            send_request("com.roonlabs.registry:1/info");
+            while (!stop_requested_.load()) {
+                const auto bytes = websocket_.receive_message();
+                std::string error;
+                const auto message = parse_moo(bytes, &error);
+                if (!message) throw std::runtime_error("invalid MOO message: " + error);
+                const std::string body_preview = message->body.empty() ? "" : (message->content_type == "application/json" ? " " + message->body_text() : " <binary " + std::to_string(message->body.size()) + " bytes>");
+                if (options_.trace)
+                    std::cout << "<- " << message->verb << " " << message->request_id << " "
+                              << (message->verb == "REQUEST" ? message->service + "/" : "")
+                              << message->name << body_preview << std::endl;
+                if (message->verb == "REQUEST") handle_request(*message); else handle_response(*message);
+            }
+        } catch (const std::exception& error) {
+            websocket_.close();
+            if (stop_requested_.load()) break;
+            std::cerr << "Roon connection lost: " << error.what() << ", retrying" << std::endl;
+            core_id_.clear(); paired_core_id_.clear(); display_subscription_ids_.clear(); transport_subscription_id_.clear();
+            artwork_requests_.clear(); requested_artwork_key_.clear();
+            std::unique_lock lock(stop_mutex_);
+            stop_condition_.wait_for(lock, std::chrono::seconds(1), [this] { return stop_requested_.load(); });
+        }
     }
+    websocket_.close();
 }
 
 std::string stable_display_key() {
