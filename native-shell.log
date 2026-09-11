@@ -1,3 +1,0 @@
-[native-shell load] event=0 uri=http://127.0.0.1:8787/ui/?fixture
-[native-shell load] event=2 uri=http://127.0.0.1:8787/ui/?fixture
-[native-shell load] event=3 uri=http://127.0.0.1:8787/ui/?fixture

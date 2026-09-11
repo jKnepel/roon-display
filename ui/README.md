@@ -1,7 +1,7 @@
 # Shared display UI
 
-This is a target-neutral full-screen Now Playing view. It can be opened in a
-browser today and embedded in Linux, Android TV, or Tizen hosts later.
+This is a platform-independant full-screen Now Playing view. It can be opened in a
+browser and embedded in Linux, Android TV, or Tizen hosts via the build deployment.
 
 Run fixture mode from the project root:
 

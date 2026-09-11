@@ -3,7 +3,7 @@
 Experimental native Roon Zone Display client in C++20. This app displays Roon´s Now Playing information
 by advertising itself as a display to the Roon Web Display services.
 
-This project is not affiliated with or supported by Roon Labs. The Zone Display
+This project is not affiliated with or supported by Roon Labs. The Roon Web Display
 service is unpublished and may change between releases.
 
 ## Build
