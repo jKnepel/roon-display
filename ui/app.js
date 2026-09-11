@@ -8,22 +8,29 @@
   const $ = (id) => document.getElementById(id);
   const host = window.RoonDisplayHost || {};
   let currentArtworkUrl = null;
+  let progressPosition = 0;
+  let progressLength = 0;
+  let progressState = "stopped";
+  let progressUpdatedAt = 0;
   const elements = {
     zone: $("zone"), state: $("state"), track: $("track"), artist: $("artist"),
     album: $("album"), progress: $("progress"), elapsed: $("elapsed"),
-    duration: $("duration"), previous: $("previous"), playPause: $("play-pause"), next: $("next"), artwork: $("artwork"), connection: $("connection")
+    duration: $("duration"), previous: $("previous"), playPause: $("play-pause"), next: $("next"), artwork: $("artwork"), connection: $("connection"),
+    controlStatus: $("control-status"),
   };
 
   async function command(command, position) {
+    elements.controlStatus.textContent = command === "seek" ? "Seeking…" : "Sending…";
     try {
       const request = position === undefined ? { command } : { command, position };
       if (typeof host.control === "function") {
         await host.control(request);
+        elements.controlStatus.textContent = "";
         return;
       }
       const response = await fetch("/control", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(request) });
-      if (!response.ok) console.warn("Roon control rejected:", command);
-    } catch (error) { console.error("Roon control:", error); }
+      if (!response.ok) { elements.controlStatus.textContent = "Unavailable"; console.warn("Roon control rejected:", command); } else { elements.controlStatus.textContent = ""; }
+    } catch (error) { elements.controlStatus.textContent = "Control failed"; console.error("Roon control:", error); }
   }
 
   function clock(seconds) {
@@ -34,6 +41,7 @@
 
   function update(state) {
     window.__roonDisplayState = state;
+    progressUpdatedAt = performance.now();
     const zone = state && state.activeZone ? state.activeZone : null;
     if (!zone) {
       elements.zone.textContent = "Waiting for zone";
@@ -62,6 +70,7 @@
     elements.album.textContent = detailed.line3 || now.album || "—";
     const position = Number(now.seekPosition ?? zone.seekPosition ?? 0);
     const duration = Number(now.length ?? 0);
+    progressPosition = position; progressLength = duration; progressState = zone.state || "stopped";
     elements.elapsed.textContent = clock(position);
     elements.duration.textContent = clock(duration);
     elements.progress.style.width = duration > 0 ? `${Math.min(100, Math.max(0, position / duration * 100))}%` : "0%";
@@ -73,6 +82,14 @@
     }
     elements.connection.classList.add("connected");
   }
+
+  function tickProgress() {
+    if (progressState !== "playing" || progressLength <= 0) return;
+    const position = Math.min(progressLength, progressPosition + (performance.now() - progressUpdatedAt) / 1000);
+    elements.elapsed.textContent = clock(position);
+    elements.progress.style.width = `${Math.min(100, position / progressLength * 100)}%`;
+  }
+  window.setInterval(tickProgress, 1000);
 
   window.RoonDisplay = { update };
   elements.previous.addEventListener("click", () => command("previous"));

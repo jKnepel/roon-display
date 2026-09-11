@@ -50,3 +50,4 @@ h2 { margin: 1.25rem 0 0; color: #d8dade; font-size: clamp(1.1rem, 2.3vw, 2.1rem
 #play-pause:hover, #play-pause:focus-visible { background: #fff; }
 .controls button:disabled { opacity: .3; cursor: not-allowed; }
 .timeline.disabled { opacity: .45; cursor: not-allowed; }
+.control-status { min-width: 5rem; color: #858a91; font-size: .7rem; }
