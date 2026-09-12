@@ -13,6 +13,7 @@
 #include <vector>
 #include <atomic>
 #include <condition_variable>
+#include <set>
 
 namespace roon_display {
 
@@ -52,6 +53,7 @@ private:
     ArtworkCallback artwork_callback_;
     std::map<std::string, std::string> artwork_requests_;
     std::string requested_artwork_key_;
+    std::set<std::string> requested_artist_artwork_keys_;
     mutable std::mutex send_mutex_;
 
     std::uint64_t send_request(const std::string& endpoint, const std::string& body = {});

@@ -247,6 +247,14 @@ std::string to_json(const DisplayState& state) {
                 if (now.image_key) {
                     out << "\"imageKey\":\"" << json_escape(*now.image_key) << "\",\"artworkUrl\":\"/artwork/" << json_escape(*now.image_key) << "\",";
                 }
+                if (!now.artist_image_keys.empty()) {
+                    out << "\"artistImageUrls\":[";
+                    for (std::size_t i = 0; i < now.artist_image_keys.size(); ++i) {
+                        if (i) out << ",";
+                        out << "\"/artwork/" << json_escape(now.artist_image_keys[i]) << "\"";
+                    }
+                    out << "],";
+                }
                 out << "\"twoLine\":{";
                 out << "\"line1\":\"" << json_escape(now.two_line.line1) << "\"";
                 if (now.two_line.line2) out << ",\"line2\":\"" << json_escape(*now.two_line.line2) << "\"";

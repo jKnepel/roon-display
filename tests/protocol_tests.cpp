@@ -46,12 +46,13 @@ int main() {
     check(escaped.snapshot().zones.at("z1").display_name == "Café", "Unicode JSON escapes decode");
     check(escaped.snapshot().zones.at("z1").now_playing->seek_position == 12.5, "JSON decimal number parses");
     DisplayStateStore store;
-    store.apply_transport("Subscribed", R"({"zones":[{"zone_id":"z1","display_name":"Living Room","state":"playing","now_playing":{"seek_position":12.5,"length":240,"image_key":"art","two_line":{"line1":"Artist","line2":"Track"}}}]})");
+    store.apply_transport("Subscribed", R"({"zones":[{"zone_id":"z1","display_name":"Living Room","state":"playing","now_playing":{"seek_position":12.5,"length":240,"image_key":"art","artist_image_keys":["artist-1","artist-2"],"two_line":{"line1":"Artist","line2":"Track"}}}]})");
     check(store.snapshot().zones.at("z1").now_playing.has_value(), "zone now-playing parses");
     check(store.snapshot().zones.at("z1").now_playing->two_line.line2 == "Track", "now-playing text parses");
     store.set_active_zone("z1");
     check(store.snapshot().active_zone_id == "z1", "active zone updates");
     check(to_json(store.snapshot()).find("artworkUrl") != std::string::npos, "state JSON includes artwork URL");
+    check(to_json(store.snapshot()).find("artistImageUrls") != std::string::npos, "state JSON includes artist image URLs");
     const char* saved_locale = std::setlocale(LC_NUMERIC, nullptr);
     const std::string saved_numeric_locale = saved_locale ? saved_locale : "C";
     if (std::setlocale(LC_NUMERIC, "de_DE.utf8")) {

@@ -97,15 +97,25 @@ void RoonClient::send_display_changed() {
 
 void RoonClient::request_active_artwork() {
     if (!active_zone_id_) return;
-    const auto zone = state_.snapshot().zones.find(*active_zone_id_);
-    if (zone == state_.snapshot().zones.end() || !zone->second.now_playing || !zone->second.now_playing->image_key) return;
-    const auto& key = *zone->second.now_playing->image_key;
-    if (requested_artwork_key_ == key) return;
-    requested_artwork_key_ = key;
-    for (const auto& request : artwork_requests_) if (request.second == key) return;
-    const auto id = send_request("com.roonlabs.image:1/get_image",
-        "{\"image_key\":\"" + json_escape(key) + "\",\"scale\":\"fit\",\"width\":1200,\"height\":1200,\"format\":\"image/jpeg\"}");
-    artwork_requests_[std::to_string(id)] = key;
+    const auto snapshot = state_.snapshot();
+    const auto zone = snapshot.zones.find(*active_zone_id_);
+    if (zone == snapshot.zones.end() || !zone->second.now_playing) return;
+
+    const auto request_image = [this](const std::string& key) {
+        for (const auto& request : artwork_requests_) if (request.second == key) return;
+        const auto id = send_request("com.roonlabs.image:1/get_image",
+            "{\"image_key\":\"" + json_escape(key) + "\",\"scale\":\"fit\",\"width\":4096,\"height\":4096,\"format\":\"image/jpeg\"}");
+        artwork_requests_[std::to_string(id)] = key;
+    };
+
+    const auto& now = *zone->second.now_playing;
+    if (now.image_key && requested_artwork_key_ != *now.image_key) {
+        requested_artwork_key_ = *now.image_key;
+        request_image(*now.image_key);
+    }
+    for (const auto& key : now.artist_image_keys) {
+        if (requested_artist_artwork_keys_.insert(key).second) request_image(key);
+    }
 }
 
 void RoonClient::handle_response(const MooMessage& message) {
@@ -250,7 +260,7 @@ void RoonClient::run() {
             if (stop_requested_.load()) break;
             std::cerr << "Roon connection lost: " << error.what() << ", retrying" << std::endl;
             core_id_.clear(); paired_core_id_.clear(); display_subscription_ids_.clear(); transport_subscription_id_.clear();
-            artwork_requests_.clear(); requested_artwork_key_.clear();
+            artwork_requests_.clear(); requested_artwork_key_.clear(); requested_artist_artwork_keys_.clear();
             std::unique_lock lock(stop_mutex_);
             stop_condition_.wait_for(lock, std::chrono::seconds(1), [this] { return stop_requested_.load(); });
         }

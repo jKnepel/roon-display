@@ -8,6 +8,11 @@
   const $ = (id) => document.getElementById(id);
   const host = window.RoonDisplayHost || {};
   let currentArtworkUrl = null;
+  let currentArtistImageUrl = null;
+  let artistImageUrls = [];
+  let artistImageIndex = 0;
+  let artistImageSignature = "";
+  let artistTransitionTimer = null;
   let progressPosition = 0;
   let progressLength = 0;
   let progressState = "stopped";
@@ -17,7 +22,7 @@
   const elements = {
     zone: $("zone"), track: $("track"), artist: $("artist"),
     album: $("album"), progress: $("progress"), elapsed: $("elapsed"),
-    duration: $("duration"), previous: $("previous"), playPause: $("play-pause"), next: $("next"), artwork: $("artwork"),
+    duration: $("duration"), previous: $("previous"), playPause: $("play-pause"), next: $("next"), artwork: $("artwork"), backdrop: $("backdrop"),
   };
 
   async function command(command, position) {
@@ -67,6 +72,14 @@
       elements.track.textContent = "No track playing";
       elements.artist.textContent = "—";
       elements.album.textContent = "—";
+      if (artistTransitionTimer !== null) window.clearTimeout(artistTransitionTimer);
+      artistTransitionTimer = null;
+      elements.backdrop.style.backgroundImage = "";
+      elements.backdrop.classList.remove("fade-out");
+      currentArtistImageUrl = null;
+      artistImageUrls = [];
+      artistImageIndex = 0;
+      artistImageSignature = "";
       if (!timelineLocked()) elements.progress.style.width = "0%";
       elements.previous.disabled = elements.playPause.disabled = elements.next.disabled = true;
       document.querySelector(".timeline").classList.add("disabled");
@@ -111,7 +124,45 @@
       if (now.artworkUrl && now.artworkUrl !== currentArtworkUrl) { elements.artwork.style.backgroundImage = `url("${now.artworkUrl}")`; currentArtworkUrl = now.artworkUrl; }
     }
 
+    const nextArtistImageUrls = Array.isArray(now.artistImageUrls) ? now.artistImageUrls.filter(Boolean) : [];
+    const nextArtistImageSignature = nextArtistImageUrls.join("\u001f");
+    if (nextArtistImageSignature !== artistImageSignature) {
+      artistImageUrls = nextArtistImageUrls;
+      artistImageSignature = nextArtistImageSignature;
+      artistImageIndex = 0;
+    }
+    updateArtistBackdrop();
   }
+
+  function updateArtistBackdrop() {
+    const artistImageUrl = artistImageUrls[artistImageIndex] || null;
+    if (artistImageUrl === currentArtistImageUrl) return;
+    if (artistTransitionTimer !== null) window.clearTimeout(artistTransitionTimer);
+    currentArtistImageUrl = artistImageUrl;
+
+    const applyImage = () => {
+      elements.backdrop.style.backgroundImage = artistImageUrl
+        ? "linear-gradient(90deg, rgba(9, 10, 13, .78), rgba(9, 10, 13, .35)), url(\"" + artistImageUrl + "\")"
+        : "";
+      elements.backdrop.style.backgroundSize = "cover";
+      elements.backdrop.classList.remove("fade-out");
+      artistTransitionTimer = null;
+    };
+
+    if (!elements.backdrop.style.backgroundImage || !artistImageUrl) {
+      applyImage();
+      return;
+    }
+    elements.backdrop.classList.add("fade-out");
+    artistTransitionTimer = window.setTimeout(applyImage, 600);
+  }
+
+  function cycleArtistImage() {
+    if (artistImageUrls.length < 2) return;
+    artistImageIndex = (artistImageIndex + 1) % artistImageUrls.length;
+    updateArtistBackdrop();
+  }
+  window.setInterval(cycleArtistImage, 5000);
 
   function tickProgress() {
     if (timelineLocked() || progressState !== "playing" || progressLength <= 0) return;
