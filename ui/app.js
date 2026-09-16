@@ -13,6 +13,7 @@
   let artistImageIndex = 0;
   let artistImageSignature = "";
   let artistTransitionTimer = null;
+  let waveformSignature = "";
   let progressPosition = 0;
   let progressLength = 0;
   let progressState = "stopped";
@@ -21,7 +22,7 @@
   let seekRequestSucceeded = false;
   const elements = {
     zone: $("zone"), track: $("track"), artist: $("artist"),
-    album: $("album"), progress: $("progress"), elapsed: $("elapsed"),
+    album: $("album"), waveform: $("waveform"), progress: $("progress"), elapsed: $("elapsed"),
     duration: $("duration"), previous: $("previous"), playPause: $("play-pause"), next: $("next"), artwork: $("artwork"), backdrop: $("backdrop"),
   };
 
@@ -82,6 +83,8 @@
       artistImageSignature = "";
       if (!timelineLocked()) elements.progress.style.width = "0%";
       elements.previous.disabled = elements.playPause.disabled = elements.next.disabled = true;
+      waveformSignature = "";
+      elements.waveform.replaceChildren();
       document.querySelector(".timeline").classList.add("disabled");
       return;
     }
@@ -100,6 +103,17 @@
     elements.artist.textContent = detailed.line2 || lines.line2 || now.artist || "—";
     elements.album.textContent = detailed.line3 || now.album || "—";
     const position = Number(now.seekPosition != null ? now.seekPosition : (zone.seekPosition != null ? zone.seekPosition : 0));
+    const waveform = Array.isArray(now.waveform) ? now.waveform : (Array.isArray(zone.waveform) ? zone.waveform : []);
+    const nextWaveformSignature = waveform.join("\u001f");
+    if (nextWaveformSignature !== waveformSignature) {
+      waveformSignature = nextWaveformSignature;
+      const waveformPeak = Math.max(1, ...waveform.map((sample) => Number(sample) || 0));
+      elements.waveform.replaceChildren(...waveform.map((sample) => {
+        const bar = document.createElement("span");
+        bar.style.height = (Math.max(0.08, Math.min(1, (Number(sample) || 0) / waveformPeak)) * 100) + "%";
+        return bar;
+      }));
+    }
     const duration = Number(now.length != null ? now.length : 0);
     const seekConfirmed = pendingSeekPosition !== null && seekRequestSucceeded && Math.abs(position - pendingSeekPosition) <= 2;
     progressLength = duration;
@@ -132,6 +146,13 @@
       artistImageIndex = 0;
     }
     updateArtistBackdrop();
+    updateWaveformProgress(progressPosition, progressLength);
+  }
+
+  function updateWaveformProgress(position, duration) {
+    if (!duration || !elements.waveform.children.length) return;
+    const activeCount = Math.round(Math.max(0, Math.min(1, position / duration)) * elements.waveform.children.length);
+    Array.from(elements.waveform.children).forEach((bar, index) => bar.classList.toggle("active", index < activeCount));
   }
 
   function updateArtistBackdrop() {
@@ -169,6 +190,7 @@
     const position = Math.min(progressLength, progressPosition + (performance.now() - progressUpdatedAt) / 1000);
     elements.elapsed.textContent = clock(position);
     elements.progress.style.width = `${Math.min(100, position / progressLength * 100)}%`;
+    updateWaveformProgress(position, progressLength);
   }
   window.setInterval(tickProgress, 1000);
 
@@ -197,6 +219,7 @@
     progressUpdatedAt = performance.now();
     elements.elapsed.textContent = clock(position);
     if (progressLength > 0) elements.progress.style.width = (Math.min(100, Math.max(0, position / progressLength * 100)) + "%");
+    updateWaveformProgress(position, progressLength);
   }
 
   timeline.addEventListener("pointerdown", (event) => {

@@ -22,6 +22,57 @@ std::string json_number(double value) {
     return result.ec == std::errc{} ? std::string(buffer, result.ptr) : "0";
 }
 
+std::string json_top_level_keys(const std::string& json) {
+    std::ostringstream keys;
+    bool first = true;
+    bool in_string = false;
+    bool escaped = false;
+    int depth = 0;
+    for (std::size_t i = 0; i < json.size(); ++i) {
+        const char c = json[i];
+        if (in_string) {
+            if (escaped) escaped = false;
+            else if (c == '\\') escaped = true;
+            else if (c == '"') in_string = false;
+            continue;
+        }
+        if (c == '"') {
+            std::size_t previous = i;
+            while (previous > 0 && (json[previous - 1] == ' ' || json[previous - 1] == '\n' || json[previous - 1] == '\r' || json[previous - 1] == '\t')) --previous;
+            if (depth == 1 && previous > 0 && (json[previous - 1] == '{' || json[previous - 1] == ',')) {
+                const auto key_start = i + 1;
+                std::size_t key_end = key_start;
+                bool key_escaped = false;
+                for (; key_end < json.size(); ++key_end) {
+                    if (key_escaped) key_escaped = false;
+                    else if (json[key_end] == '\\') key_escaped = true;
+                    else if (json[key_end] == '"') break;
+                }
+                std::size_t after = key_end + 1;
+                while (after < json.size() && (json[after] == ' ' || json[after] == '\n' || json[after] == '\r' || json[after] == '\t')) ++after;
+                if (key_end < json.size() && after < json.size() && json[after] == ':') {
+                    if (!first) keys << ',';
+                    keys << json.substr(key_start, key_end - key_start);
+                    first = false;
+                }
+            }
+            in_string = true;
+            continue;
+        }
+        if (c == '{' || c == '[') ++depth;
+        else if (c == '}' || c == ']') --depth;
+    }
+    return keys.str();
+}
+
+std::string hex_prefix(const std::vector<std::uint8_t>& bytes, std::size_t count = 16) {
+    std::ostringstream out;
+    out << std::hex << std::setfill('0');
+    for (std::size_t i = 0; i < std::min(count, bytes.size()); ++i)
+        out << std::setw(2) << static_cast<unsigned int>(bytes[i]);
+    return out.str();
+}
+
 } // namespace
 
 RoonClient::RoonClient(ClientOptions options) : options_(std::move(options)) {
@@ -248,7 +299,40 @@ void RoonClient::run() {
                 std::string error;
                 const auto message = parse_moo(bytes, &error);
                 if (!message) throw std::runtime_error("invalid MOO message: " + error);
-                const std::string body_preview = message->body.empty() ? "" : (message->content_type == "application/json" ? " " + message->body_text() : " <binary " + std::to_string(message->body.size()) + " bytes>");
+                const std::string protocol_body = message->content_type == "application/json" ? message->body_text() : std::string{};
+                const std::string body_preview = message->body.empty() ? "" : (message->content_type == "application/json" ? " " + protocol_body : " <binary " + std::to_string(message->body.size()) + " bytes>");
+                std::cerr << "[protocol] direction=in verb=" << message->verb
+                          << " service=" << message->service
+                          << " request_id=" << message->request_id
+                          << " name=" << message->name
+                          << " content_type=" << (message->content_type.empty() ? "none" : message->content_type)
+                          << " body_bytes=" << message->body.size();
+                if (!protocol_body.empty())
+                    std::cerr << " json_keys=" << json_top_level_keys(protocol_body);
+                else if (!message->body.empty())
+                    std::cerr << " hex_prefix=" << hex_prefix(message->body);
+                std::cerr << '\n';
+                const bool contains_waveform = protocol_body.find("\"waveform\"") != std::string::npos ||
+                                               protocol_body.find("\"waveform_key\"") != std::string::npos;
+                const bool contains_now_playing = protocol_body.find("\"now_playing\"") != std::string::npos ||
+                                                  protocol_body.find("\"nowPlaying\"") != std::string::npos;
+                const bool is_waveform_message = message->name.find("waveform") != std::string::npos ||
+                                                 message->name.find("Waveform") != std::string::npos;
+                const bool is_track_change = message->name == "Changed" && contains_now_playing;
+                if (is_waveform_message || contains_waveform || is_track_change) {
+                    std::cerr << "[protocol-waveform] candidate="
+                              << ((is_waveform_message || contains_waveform) ? "waveform" : "track-change")
+                              << " verb=" << message->verb
+                              << " service=" << message->service
+                              << " request_id=" << message->request_id
+                              << " name=" << message->name
+                              << " waveform=" << (contains_waveform ? "yes" : "no")
+                              << " now_playing=" << (contains_now_playing ? "yes" : "no")
+                              << " body_bytes=" << protocol_body.size();
+                    if (!protocol_body.empty())
+                        std::cerr << " body_prefix=" << protocol_body.substr(0, 240);
+                    std::cerr << '\n';
+                }
                 if (options_.trace)
                     std::cout << "<- " << message->verb << " " << message->request_id << " "
                               << (message->verb == "REQUEST" ? message->service + "/" : "")

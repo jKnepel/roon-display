@@ -41,7 +41,7 @@ int main() {
     check(json_string_field(R"({"core_id":"abc-123"})", "core_id") == "abc-123",
           "JSON string field extraction works");
     DisplayStateStore escaped;
-    escaped.apply_transport("Subscribed", R"({"zones":[{"zone_id":"z\u0031","display_name":"Caf\u00e9","state":"playing","now_playing":{"seek_position":12.5,"length":240,"two_line":{"line1":"Artiste","line2":"Piste"}}}]})");
+    escaped.apply_transport("Subscribed", R"({"zones":[{"zone_id":"z\u0031","display_name":"Caf\u00e9","state":"playing","now_playing":{"seek_position":12.5,"seek_position":12.5,"length":240,"two_line":{"line1":"Artiste","line2":"Piste"}}}]})");
     check(escaped.snapshot().zones.contains("z1"), "Unicode JSON escapes parse");
     check(escaped.snapshot().zones.at("z1").display_name == "Café", "Unicode JSON escapes decode");
     check(escaped.snapshot().zones.at("z1").now_playing->seek_position == 12.5, "JSON decimal number parses");
@@ -53,6 +53,10 @@ int main() {
     check(store.snapshot().active_zone_id == "z1", "active zone updates");
     check(to_json(store.snapshot()).find("artworkUrl") != std::string::npos, "state JSON includes artwork URL");
     check(to_json(store.snapshot()).find("artistImageUrls") != std::string::npos, "state JSON includes artist image URLs");
+    store.apply_transport("WaveformChanged", R"({"zone_id":"z1","waveform":[0,2,1]})");
+    check(to_json(store.snapshot()).find("waveform") != std::string::npos, "state JSON includes waveform");
+    store.apply_transport("Changed", R"({"zones_changed":[{"zone_id":"z1","display_name":"Living Room","state":"playing","now_playing":{"seek_position":12.5,"length":240,"two_line":{"line1":"Artist","line2":"Track"}}}]})");
+    check(to_json(store.snapshot()).find("waveform") != std::string::npos, "waveform survives zone updates");
     const char* saved_locale = std::setlocale(LC_NUMERIC, nullptr);
     const std::string saved_numeric_locale = saved_locale ? saved_locale : "C";
     if (std::setlocale(LC_NUMERIC, "de_DE.utf8")) {

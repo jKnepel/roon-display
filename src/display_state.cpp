@@ -4,6 +4,9 @@
 
 #include <cctype>
 #include <cmath>
+#include <algorithm>
+#include <iostream>
+#include <limits>
 #include <stdexcept>
 #include <sstream>
 #include <locale>
@@ -239,6 +242,14 @@ std::string to_json(const DisplayState& state) {
             if (zone.next_allowed) out << ",\"nextAllowed\":" << (*zone.next_allowed ? "true" : "false");
             if (zone.seek_allowed) out << ",\"seekAllowed\":" << (*zone.seek_allowed ? "true" : "false");
             if (zone.seek_position) out << ",\"seekPosition\":" << *zone.seek_position;
+            if (!zone.waveform.empty()) {
+                out << ",\"waveform\":[";
+                for (std::size_t i = 0; i < zone.waveform.size(); ++i) {
+                    if (i) out << ",";
+                    out << zone.waveform[i];
+                }
+                out << "]";
+            }
             if (zone.now_playing) {
                 const auto& now = *zone.now_playing;
                 out << ",\"nowPlaying\":{";
@@ -296,13 +307,60 @@ void DisplayStateStore::apply_transport(const std::string& response, const std::
         if (response == "Subscribed") {
             state_.zones.clear();
             if (const auto* zones = member(root, "zones"); zones && zones->array())
-                for (const auto& item : *zones->array()) { auto parsed = zone(item); if (!parsed.zone_id.empty()) state_.zones[parsed.zone_id] = std::move(parsed); }
+                for (const auto& item : *zones->array()) { auto parsed = zone(item); if (!parsed.zone_id.empty()) {
+                    const auto pending = pending_waveforms_.find(parsed.zone_id);
+                    if (parsed.waveform.empty() && pending != pending_waveforms_.end()) parsed.waveform = pending->second;
+                    state_.zones[parsed.zone_id] = std::move(parsed);
+                } }
+        } else if (response == "WaveformChanged") {
+            const auto zone_id = string_member(root, "zone_id");
+            std::vector<double> samples;
+            std::size_t non_numeric = 0;
+            std::size_t nonzero = 0;
+            double minimum = std::numeric_limits<double>::infinity();
+            double maximum = -std::numeric_limits<double>::infinity();
+            if (const auto* waveform = member(root, "waveform"); waveform && waveform->array()) {
+                for (const auto& sample : *waveform->array()) {
+                    if (!sample.number()) {
+                        ++non_numeric;
+                        continue;
+                    }
+                    const auto value = *sample.number();
+                    samples.push_back(value);
+                    minimum = std::min(minimum, value);
+                    maximum = std::max(maximum, value);
+                    if (value != 0) ++nonzero;
+                }
+            }
+            const auto raw_waveform = json.find("\"waveform\"");
+            std::cerr << "[waveform] zone=" << zone_id
+                      << " raw_bytes=" << json.size()
+                      << " samples=" << samples.size()
+                      << " non_numeric=" << non_numeric
+                      << " nonzero=" << nonzero;
+            if (!samples.empty()) std::cerr << " min=" << minimum << " max=" << maximum;
+            std::cerr << " preview=";
+            for (std::size_t i = 0; i < std::min<std::size_t>(samples.size(), 8); ++i)
+                std::cerr << (i ? "," : "[") << samples[i];
+            std::cerr << (samples.empty() ? "[]" : "]") << '\n';
+            if (raw_waveform != std::string::npos)
+                std::cerr << "[waveform] raw_prefix=" << json.substr(raw_waveform, 220) << '\n';
+            const auto it = state_.zones.find(zone_id);
+            if (it != state_.zones.end()) it->second.waveform = samples;
+            else pending_waveforms_[zone_id] = std::move(samples);
         } else if (response == "Changed") {
             if (const auto* removed = member(root, "zones_removed"); removed && removed->array())
                 for (const auto& item : *removed->array()) state_.zones.erase(string_member(item, "zone_id"));
             for (const char* key : {"zones_added", "zones_changed"})
                 if (const auto* list = member(root, key); list && list->array())
-                    for (const auto& item : *list->array()) { auto parsed = zone(item); if (!parsed.zone_id.empty()) state_.zones[parsed.zone_id] = std::move(parsed); }
+                    for (const auto& item : *list->array()) {
+                        auto parsed = zone(item);
+                        if (!parsed.zone_id.empty()) {
+                            const auto existing = state_.zones.find(parsed.zone_id);
+                            if (existing != state_.zones.end() && parsed.waveform.empty()) parsed.waveform = existing->second.waveform;
+                            state_.zones[parsed.zone_id] = std::move(parsed);
+                        }
+                    }
             if (const auto* seeks = member(root, "zones_seek_changed"); seeks && seeks->array())
                 for (const auto& item : *seeks->array()) { auto it = state_.zones.find(string_member(item, "zone_id")); if (it != state_.zones.end()) { it->second.seek_position = number_member(item, "seek_position"); it->second.queue_time_remaining = number_member(item, "queue_time_remaining"); if (it->second.now_playing) it->second.now_playing->seek_position = it->second.seek_position; } }
         }

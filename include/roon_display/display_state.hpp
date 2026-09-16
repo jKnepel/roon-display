@@ -37,6 +37,7 @@ struct ZoneState {
     std::optional<bool> previous_allowed;
     std::optional<bool> next_allowed;
     std::optional<bool> seek_allowed;
+    std::vector<double> waveform;
     std::optional<NowPlayingState> now_playing;
 };
 
@@ -62,6 +63,7 @@ public:
 
 private:
     DisplayState state_;
+    std::map<std::string, std::vector<double>> pending_waveforms_;
     ChangeCallback callback_;
 
     void changed();

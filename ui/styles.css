@@ -25,8 +25,11 @@ h2 { margin: 1.25rem 0 0; color: #d8dade; font-size: clamp(0.25rem, 2.3vw, 1.5re
 .album { display: none; margin: .55rem 0 0; color: #858a91; font-size: clamp(.95rem, 1.4vw, 1.25rem); }
 .timeline { width: 100%; cursor: pointer; padding: .65rem 0; }
 .timeline { touch-action: none; user-select: none; }
-.progress-track { height: 4px; width: 100%; background: #ffffff28; }
-.progress { height: 100%; width: 0; background: #f5f5f3; transition: width .5s linear; }
+.progress-track { position: relative; display: flex; align-items: center; width: 100%; height: 2.5rem; background: transparent; }
+.waveform { position: absolute; inset: .45rem 0; display: flex; align-items: center; gap: 0; overflow: hidden; }
+.waveform span { flex: 1 1 0; min-width: 0; width: 0; height: 8%; border-radius: 2px; background: #ffffff38; transition: background .15s ease; }
+.waveform span.active { background: #f5f5f3; }
+.progress { display: none; }
 .progress.instant { transition: none; }
 .timeline.dragging .progress, .timeline.seeking .progress { transition: none; }
 .times { display: flex; justify-content: space-between; margin-top: .65rem; color: #858a91; font-size: .72rem; font-variant-numeric: tabular-nums; }
