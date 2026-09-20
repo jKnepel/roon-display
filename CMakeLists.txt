@@ -56,6 +56,32 @@ if(ROON_DISPLAY_BUILD_DESKTOP)
     endif()
 endif()
 
+
+option(ROON_DISPLAY_BUILD_TIZEN "Build the Samsung Tizen WebAssembly host (requires Samsung Emscripten)" OFF)
+if(ROON_DISPLAY_BUILD_TIZEN)
+    if(NOT EMSCRIPTEN)
+        message(FATAL_ERROR "ROON_DISPLAY_BUILD_TIZEN requires Emscripten. Configure with Samsung's emcmake.")
+    endif()
+    target_compile_definitions(roon_protocol PRIVATE ROON_DISPLAY_TIZEN=1)
+    add_executable(roon-display-tizen src/tizen_app.cpp)
+    target_compile_definitions(roon-display-tizen PRIVATE ROON_DISPLAY_TIZEN=1)
+    target_compile_options(roon-display-tizen PRIVATE -pthread)
+    target_link_libraries(roon-display-tizen PRIVATE roon_protocol)
+    target_link_options(roon-display-tizen PRIVATE
+        -pthread
+        "-sMODULARIZE=1"
+        "-sEXPORT_NAME=createRoonDisplayModule"
+        "-sENVIRONMENT=worker"
+        "-sPROXY_TO_PTHREAD=1"
+        "-sUSE_PTHREADS=1"
+        "-sPTHREAD_POOL_SIZE=1"
+        "-sALLOW_MEMORY_GROWTH=1"
+        "-sEXPORTED_FUNCTIONS=[\"_main\",\"_roon_display_control\",\"_roon_display_seek\",\"_roon_display_stop\"]"
+        "-sEXPORTED_RUNTIME_METHODS=[\"ccall\"]"
+    )
+    set_target_properties(roon-display-tizen PROPERTIES SUFFIX ".js")
+    message(STATUS "Samsung Tizen WebAssembly host enabled")
+endif()
 if(NOT ROON_DISPLAY_FLATPAK)
     install(TARGETS roon-display live-preview state-replay
         RUNTIME DESTINATION bin)

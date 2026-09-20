@@ -80,3 +80,33 @@ The bundle grants LAN access for Roon discovery and launches the native WebKit
 desktop shell. The desktop executable serves its UI through an in-process
 `roon-display://` scheme and communicates with the UI through a native WebKit
 bridge.
+
+## Samsung Tizen TV
+
+The Samsung target packages the shared UI with the C++ Roon client compiled to
+WebAssembly. It requires a Samsung TV running Tizen 5.5 or newer, Samsung's
+Emscripten SDK with its Tizen sockets extension, and the Tizen Studio CLI.
+
+Build the staged TV Web App:
+
+```sh
+scripts/build-tizen.sh
+```
+
+Create a signed WGT for direct Tizen installation with a local certificate
+profile:
+
+```sh
+scripts/package-tizen.sh YOUR_CERTIFICATE_PROFILE
+```
+
+The result is written to `dist/tizen/`. When distributing a GitHub release for
+Apps2Samsung, publish the WGT and let Apps2Samsung re-sign it for each TV. Keep
+the `RDSPY12345.RoonDisplay` app ID stable and increment the version in
+`packaging/tizen/config.xml` for updates.
+
+The TV host persists a display UUID in Web Storage, runs Roon discovery and
+transport in a WebAssembly worker, forwards artwork as Blob URLs, and maps
+Samsung media keys to the shared playback controls. Samsung's socket extension
+must be validated on the actual target LAN because Tizen cannot enumerate
+interfaces for the desktop directed-broadcast fallback.

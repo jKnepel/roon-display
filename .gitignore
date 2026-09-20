@@ -1,6 +1,12 @@
+*.log
+compile_commands.json
+
+/dist/
+/.cache/
 /build/
 /build-flatpak/
+/build-tizen/
+
 /.flatpak-builder/
-/.cache/
-compile_commands.json
-*.log
+/packaging/tizen/.buildResult/
+/packaging/tizen/*.wgt

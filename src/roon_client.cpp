@@ -2,7 +2,9 @@
 
 #include "roon_display/sood.hpp"
 
+#ifndef ROON_DISPLAY_TIZEN
 #include <unistd.h>
+#endif
 
 #include <charconv>
 #include <chrono>
@@ -269,6 +271,11 @@ void RoonClient::run() {
 }
 
 std::string stable_display_key() {
+#ifdef ROON_DISPLAY_TIZEN
+    // Tizen's Web Runtime has no host name. The Tizen bridge provides and
+    // persists a UUID in Web Storage before constructing the client.
+    return "roon-display-tizen";
+#else
     std::array<char, 256> hostname{};
     if (::gethostname(hostname.data(), hostname.size()) != 0) return "roon-display-local";
     const auto hash = std::hash<std::string>{}(hostname.data());
@@ -280,6 +287,7 @@ std::string stable_display_key() {
         << "8" << std::setw(3) << static_cast<std::uint16_t>((hash >> 20) & 0x0fff) << '-'
         << std::setw(12) << static_cast<std::uint64_t>(hash & 0xffffffffffffULL);
     return out.str();
+#endif
 }
 
 } // namespace roon_display

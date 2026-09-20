@@ -1,5 +1,8 @@
 (function () {
   "use strict";
+  // Platform adapters (for example, the Tizen WASM host) are loaded before
+  // this generic adapter and own the contract when present.
+  if (window.RoonDisplayHost) return;
   const bridge = window.webkit && window.webkit.messageHandlers && window.webkit.messageHandlers.roonDisplay;
   const native = location.protocol === "roon-display:";
   if (bridge || native) {

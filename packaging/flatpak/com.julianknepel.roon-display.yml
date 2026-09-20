@@ -21,3 +21,4 @@ modules:
     build-commands:
       - install -Dm755 packaging/flatpak/roon-display-run /app/bin/roon-display-run
       - install -Dm644 packaging/flatpak/com.julianknepel.roon-display.desktop /app/share/applications/com.julianknepel.roon-display.desktop
+      - install -Dm644 packaging/icon.svg /app/share/icons/hicolor/scalable/apps/com.julianknepel.roon-display.svg

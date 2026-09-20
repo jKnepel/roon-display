@@ -1,8 +1,10 @@
 #include "roon_display/sood.hpp"
 
 #include <arpa/inet.h>
+#ifndef ROON_DISPLAY_TIZEN
 #include <ifaddrs.h>
 #include <net/if.h>
+#endif
 #include <sys/select.h>
 #include <sys/socket.h>
 #include <unistd.h>
@@ -105,6 +107,12 @@ std::optional<SoodMessage> SoodDiscovery::discover(std::chrono::milliseconds tim
     destination.sin_port = htons(port);
     ::inet_pton(AF_INET, multicast_address, &destination.sin_addr);
 
+#ifdef ROON_DISPLAY_TIZEN
+    // The Tizen socket extension does not expose getifaddrs(). Its default
+    // route selects the active LAN interface for this multicast query.
+    ::sendto(socket.fd, query.data(), query.size(), 0,
+             reinterpret_cast<sockaddr*>(&destination), sizeof(destination));
+#else
     ifaddrs* interfaces = nullptr;
     if (::getifaddrs(&interfaces) != 0) throw std::runtime_error("unable to enumerate interfaces");
     for (auto* item = interfaces; item; item = item->ifa_next) {
@@ -123,6 +131,7 @@ std::optional<SoodMessage> SoodDiscovery::discover(std::chrono::milliseconds tim
         }
     }
     ::freeifaddrs(interfaces);
+#endif
 
     const auto deadline = std::chrono::steady_clock::now() + timeout;
     while (std::chrono::steady_clock::now() < deadline) {
